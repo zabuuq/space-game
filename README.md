@@ -8,7 +8,7 @@ Simple Godot 4 multiplayer demo using GDScript.
 - Other computers can connect by entering the host IP + port.
 - Everyone sees the same symbol in the center of the screen.
 - It starts as a dot.
-- When the **host** presses **W/A/S/D**, the dot becomes an arrow pointing in that direction on every connected machine.
+- When the **host** holds **W/A/S/D**, the dot becomes an arrow pointing in that direction on every connected machine. Releasing the key returns the shared symbol to a dot.
 
 ## Run
 
@@ -16,4 +16,4 @@ Simple Godot 4 multiplayer demo using GDScript.
 2. Run the main scene.
 3. On one machine, enter a port and click **Host**.
 4. On other machines, enter the host IP + port and click **Join**.
-5. Press **W/A/S/D** on the host to broadcast direction updates.
+5. Hold **W/A/S/D** on the host to broadcast direction updates, then release to reset to the dot.
