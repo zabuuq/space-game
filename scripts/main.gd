@@ -113,20 +113,23 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not multiplayer.is_server():
 		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		var new_direction := Vector2.ZERO
+	if event is InputEventKey and not event.echo:
 		match event.physical_keycode:
-			KEY_W:
-				new_direction = Vector2.UP
-			KEY_S:
-				new_direction = Vector2.DOWN
-			KEY_A:
-				new_direction = Vector2.LEFT
-			KEY_D:
-				new_direction = Vector2.RIGHT
+			KEY_W, KEY_S, KEY_A, KEY_D:
+				update_direction.rpc(_get_current_direction())
 			_:
 				return
-		update_direction.rpc(new_direction)
+
+func _get_current_direction() -> Vector2:
+	if Input.is_physical_key_pressed(KEY_W):
+		return Vector2.UP
+	if Input.is_physical_key_pressed(KEY_S):
+		return Vector2.DOWN
+	if Input.is_physical_key_pressed(KEY_A):
+		return Vector2.LEFT
+	if Input.is_physical_key_pressed(KEY_D):
+		return Vector2.RIGHT
+	return Vector2.ZERO
 
 func _draw() -> void:
 	var center := get_viewport_rect().size * 0.5
