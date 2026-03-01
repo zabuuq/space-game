@@ -1,13 +1,11 @@
 extends Node2D
 
-const ARROW_LENGTH := 90.0
-const ARROW_HEAD := 24.0
-const DOT_RADIUS := 20.0
 const DEFAULT_PORT := 56419
 const FONT_SIZE_INCREASE := 3
 const QUIT_BUTTON_SIZE := 32.0
+const SHIP_OUTLINE_WIDTH := 3.0
+const SHIP_NAVIGATION_SCRIPT := preload("res://scripts/ship_navigation.gd")
 
-var direction: Vector2 = Vector2.ZERO
 var status_label: Label
 var local_ip_label: Label
 var external_ip_label: Label
@@ -25,10 +23,11 @@ var local_internal_ip := "127.0.0.1"
 var local_external_ip := "Loading..."
 var peer_order: Array[int] = []
 var peer_info_by_id: Dictionary = {}
+var ship_navigation: ShipNavigation = SHIP_NAVIGATION_SCRIPT.new()
 
-@rpc("any_peer", "call_local", "reliable")
-func update_direction(new_direction: Vector2) -> void:
-	direction = new_direction
+@rpc("authority", "call_local", "unreliable")
+func sync_ship_state(new_position: Vector2, new_rotation: float, new_speed: float) -> void:
+	ship_navigation.apply_network_state(new_position, new_rotation, new_speed)
 	queue_redraw()
 
 @rpc("any_peer", "reliable")
@@ -69,6 +68,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(queue_redraw)
 
 	set_process_unhandled_input(true)
+	set_process(true)
 	_set_status("Not connected")
 	_update_local_ip_labels()
 	_request_external_ip()
@@ -234,6 +234,12 @@ func _on_host_pressed() -> void:
 	_set_status("Hosting on port %d" % DEFAULT_PORT)
 	_set_connected_controls(true)
 	_initialize_host_roster()
+	_reset_ship()
+	sync_ship_state.rpc(
+		ship_navigation.position,
+		ship_navigation.rotation_radians,
+		ship_navigation.speed
+	)
 
 func _on_join_pressed() -> void:
 	join_popup.popup_centered()
@@ -296,6 +302,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	peer_order.clear()
 	peer_info_by_id.clear()
 	_refresh_peer_list()
+	_reset_ship()
 
 func _set_connected_controls(is_connected: bool) -> void:
 	host_button.visible = not is_connected
@@ -412,6 +419,34 @@ func _on_external_ip_request_completed(
 	_update_local_ip_labels()
 	_submit_local_identity()
 
+func _reset_ship() -> void:
+	ship_navigation.reset(_get_right_section_center())
+	queue_redraw()
+
+func _process(delta: float) -> void:
+	if multiplayer.multiplayer_peer == null:
+		return
+	if not multiplayer.is_server():
+		return
+
+	if not ship_navigation.initialized:
+		_reset_ship()
+
+	ship_navigation.update_host(
+		delta,
+		Input.is_physical_key_pressed(KEY_A),
+		Input.is_physical_key_pressed(KEY_D),
+		Input.is_physical_key_pressed(KEY_W),
+		_get_right_section_rect()
+	)
+
+	sync_ship_state.rpc(
+		ship_navigation.position,
+		ship_navigation.rotation_radians,
+		ship_navigation.speed
+	)
+	queue_redraw()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -419,21 +454,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey and not event.echo:
 		match event.physical_keycode:
-			KEY_W, KEY_S, KEY_A, KEY_D:
-				update_direction.rpc(_get_current_direction())
+			KEY_S:
+				ship_navigation.decrease_speed_once()
 			_:
 				return
-
-func _get_current_direction() -> Vector2:
-	if Input.is_physical_key_pressed(KEY_W):
-		return Vector2.UP
-	if Input.is_physical_key_pressed(KEY_S):
-		return Vector2.DOWN
-	if Input.is_physical_key_pressed(KEY_A):
-		return Vector2.LEFT
-	if Input.is_physical_key_pressed(KEY_D):
-		return Vector2.RIGHT
-	return Vector2.ZERO
+		sync_ship_state.rpc(
+			ship_navigation.position,
+			ship_navigation.rotation_radians,
+			ship_navigation.speed
+		)
+		queue_redraw()
 
 func _get_right_section_center() -> Vector2:
 	if right_section == null:
@@ -441,19 +471,13 @@ func _get_right_section_center() -> Vector2:
 	var right_rect := right_section.get_global_rect()
 	return right_rect.position + (right_rect.size * 0.5)
 
+func _get_right_section_rect() -> Rect2:
+	if right_section == null:
+		return get_viewport_rect()
+	return right_section.get_global_rect()
+
 func _draw() -> void:
-	var center := _get_right_section_center()
-	if direction == Vector2.ZERO:
-		draw_circle(center, DOT_RADIUS, Color.CYAN)
+	if not ship_navigation.initialized:
 		return
 
-	var dir := direction.normalized()
-	var tip := center + (dir * ARROW_LENGTH)
-	var tail := center - (dir * ARROW_LENGTH * 0.45)
-	var normal := Vector2(-dir.y, dir.x)
-	var left_wing := tip - (dir * ARROW_HEAD) + (normal * ARROW_HEAD * 0.6)
-	var right_wing := tip - (dir * ARROW_HEAD) - (normal * ARROW_HEAD * 0.6)
-
-	draw_line(tail, tip, Color.ORANGE, 8.0)
-	draw_line(tip, left_wing, Color.ORANGE, 8.0)
-	draw_line(tip, right_wing, Color.ORANGE, 8.0)
+	draw_polyline(ship_navigation.get_transformed_points(), Color.ORANGE, SHIP_OUTLINE_WIDTH, true)

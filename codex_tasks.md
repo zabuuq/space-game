@@ -53,14 +53,17 @@
     * `W` increases the ship's speed.
     * `S` decreases the ship's speed.
     * Minimum speed of the ship is 0 pixels per second, or no movement. The ship cannot go backwards.
-    * Maximum speed of the ship should be equivalent to 50 pixels per second or the total length of the ship icon.
-    * Increment 1 pixel per second at a time.
+    * Maximum speed of the ship should be equivalent to 200 pixels per second.
+    * Increment 28 pixel per second at a time.
   * Movement constraints:
-    * The right section of the window (as defined in task #5) is the field of play.
-      * T
-  * Pass the location that the dot is in the screen to the clients and update their display of the dot accordingly.
-    * Make sure to 
-  * 
+    * The right section of the window is the field of play.
+      * When the ship reaches an edge of the field of play it should continue to the opposite edge of the field.
+        * This should act similar to the game of Asteroids where the ship crosses from one side to the other.
+        * Make sure it is a smooth transition from one side to the other. The ship will be partially visible on both sides as it passes across the edge of the field of play until it is completely crossed.
+  * Host/Client requirements:
+    * Pass the ships location and direction to the clients' applications.
+    * The client application should render the ship icon based on the information shared.
+    * Be sure to keep screen size and resolution in mind when displaying the ship on the client screens. Everyone should see the ship in the same relative location on their respective screens.
 
 ## Notes
 * Make sure to update the appropriate documentation when you make changes.
