@@ -63,6 +63,11 @@ func build_ui() -> void:
 	disconnect_button.pressed.connect(_on_disconnect_pressed)
 	button_row.add_child(disconnect_button)
 
+	var quit_button := Button.new()
+	quit_button.text = "Quit"
+	quit_button.pressed.connect(_on_quit_pressed)
+	vbox.add_child(quit_button)
+
 	status_label = Label.new()
 	status_label.text = "Status: Not connected"
 	vbox.add_child(status_label)
@@ -158,6 +163,9 @@ func _set_connected_controls(is_connected: bool) -> void:
 	host_button.visible = not is_connected
 	join_button.visible = not is_connected
 	disconnect_button.visible = is_connected
+
+func _on_quit_pressed() -> void:
+	get_tree().quit()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if multiplayer.multiplayer_peer == null:

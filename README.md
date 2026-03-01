@@ -10,6 +10,7 @@ Simple Godot 4 multiplayer demo using GDScript.
 - After hosting or joining, **Host** and **Join** are replaced with **Disconnect**.
 - Clicking **Disconnect** disconnects only that local user.
   - If the host disconnects, all connected clients are disconnected.
+- A **Quit** button closes the game window.
 - Everyone sees the same symbol in the center of the screen.
 - It starts as a dot.
 - When the **host** holds **W/A/S/D**, the dot becomes an arrow pointing in that direction on every connected machine. Releasing the key returns the shared symbol to a dot.
@@ -22,3 +23,4 @@ Simple Godot 4 multiplayer demo using GDScript.
 4. On other machines, click **Join**, enter the host IP, then click **Connect**.
 5. Hold **W/A/S/D** on the host to broadcast direction updates, then release to reset to the dot.
 6. Click **Disconnect** to leave the session and return local status to `Not connected`.
+7. Click **Quit** to close the game.

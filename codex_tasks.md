@@ -13,7 +13,9 @@
   * When a client disconnects, only they should be disconnected, not all clients.
   * Status should change to "Not connected" in their local display when the user disconnects.
 
-4. Divide the window vertically into two sections.
+4. Add a quit button that closes the "game."
+
+5. Divide the window vertically into two sections.
   * Left section:
     * Background: dark gray
     * Size: One quarter of the window
@@ -35,8 +37,17 @@
     * Display item:
       * The directional "dot," centered in the right section.
 
+6. Instead of a stationary dot in the window that changes to arrow keys, start the dot in the center of the screen and move it around based on the direction the host selects.
+  * Keep the 
+  * Confine the dot to the right section of the window.
+    * If the dot hits an edge of the section, automatically reverse di
+  * Pass the location that the dot is in the screen to the clients and update their display of the dot accordingly.
+    * Make sure to 
+  * 
+
 ## Notes
 * Make sure to update the appropriate documentation when you make changes.
 * Make sure `README.md` properly explains the program when changes are made.
   * You do not need to include a summary of the changes made, just make sure it still properly describes the "game."
   * If `README.md` already properly describes the "game," do not make any unecessary changes to it.
+* Do not compile the Godot code. I will handle this.
