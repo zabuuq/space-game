@@ -11,9 +11,15 @@ Simple Godot 4 multiplayer demo using GDScript.
 - Clicking **Disconnect** disconnects only that local user.
   - If the host disconnects, all connected clients are disconnected.
 - A **Quit** button closes the game window.
-- Everyone sees the same symbol in the center of the screen.
+- The window is split vertically:
+  - Left quarter: dark gray control panel
+  - Right three-quarters: black play area
+- The left panel shows local/external IP, port, controls, connection status, instructions, and the host/client IP roster.
+  - Roster format is `[internal_ip]/[external_ip]`.
+  - Host is listed first in bold; clients follow in connection order.
+- Everyone sees the same symbol centered in the right section.
 - It starts as a dot.
-- When the **host** holds **W/A/S/D**, the dot becomes an arrow pointing in that direction on every connected machine. Releasing the key returns the shared symbol to a dot.
+- When the **host** holds **W/A/S/D** keys, the dot becomes an arrow pointing in that direction on every connected machine. Releasing the key returns the shared symbol to a dot.
 
 ## Run
 
