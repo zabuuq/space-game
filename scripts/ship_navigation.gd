@@ -1,9 +1,9 @@
 extends RefCounted
 class_name ShipNavigation
 
-const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
-const MAX_SPEED := 0.35
-const SPEED_STEP := 0.05
+const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
+const MAX_SPEED := 200.0
+const SPEED_STEP := 28.0
 const ROTATION_SPEED := 2.8
 const START_ROTATION_RADIANS := PI
 const SHIP_RENDER_SCALE := 0.010
@@ -70,14 +70,16 @@ func update_host(
 func full_stop() -> void:
 	speed = 0.0
 
-func get_screen_points(play_rect: Rect2) -> PackedVector2Array:
+func get_screen_points(play_rect: Rect2, world_bounds: Rect2 = WORLD_BOUNDS) -> PackedVector2Array:
 	if play_rect.size.x <= 0.0 or play_rect.size.y <= 0.0:
 		return PackedVector2Array()
 
-	var center := play_rect.position + Vector2(
-		position.x * play_rect.size.x,
-		position.y * play_rect.size.y
-	)
+	var normalized_position := Vector2.ZERO
+	if world_bounds.size.x > 0.0:
+		normalized_position.x = (position.x - world_bounds.position.x) / world_bounds.size.x
+	if world_bounds.size.y > 0.0:
+		normalized_position.y = (position.y - world_bounds.position.y) / world_bounds.size.y
+	var center := play_rect.position + (normalized_position * play_rect.size)
 	var ship_scale := minf(play_rect.size.x, play_rect.size.y) * SHIP_RENDER_SCALE
 
 	var transformed := PackedVector2Array()

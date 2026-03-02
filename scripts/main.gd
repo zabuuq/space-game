@@ -4,7 +4,7 @@ const DEFAULT_PORT := 56419
 const FONT_SIZE_INCREASE := 3
 const QUIT_BUTTON_SIZE := 32.0
 const SHIP_OUTLINE_WIDTH := 3.0
-const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
+const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 const MAX_SHIPS := 6
 
 const STATUS_NOT_CONNECTED := "Not connected"
@@ -21,7 +21,7 @@ const SHIP_COLORS: Array[Color] = [
 	Color(0.29, 0.90, 0.88)  # cyan
 ]
 
-const SHIP_START_POSITIONS: Array[Vector2] = [
+const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 	Vector2(1.0 / 6.0, 1.0 / 4.0),
 	Vector2(5.0 / 6.0, 1.0 / 4.0),
 	Vector2(5.0 / 6.0, 3.0 / 4.0),
@@ -408,14 +408,14 @@ func _draw() -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
 
-	var play_rect: Rect2 = _get_right_section_rect()
+	var play_rect: Rect2 = _get_play_render_rect()
 	var index: int = 0
 	for ship in ship_slots:
 		if not ship.initialized:
 			index += 1
 			continue
 
-		var ship_points := ship.get_screen_points(play_rect)
+		var ship_points := ship.get_screen_points(play_rect, WORLD_BOUNDS)
 		if ship_points.size() < 2:
 			index += 1
 			continue
@@ -427,6 +427,22 @@ func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
 		return get_viewport_rect()
 	return ui.right_section.get_global_rect()
+
+func _get_play_render_rect() -> Rect2:
+	var container: Rect2 = _get_right_section_rect()
+	if container.size.x <= 0.0 or container.size.y <= 0.0:
+		return container
+
+	var world_aspect: float = WORLD_BOUNDS.size.x / WORLD_BOUNDS.size.y
+	var container_aspect: float = container.size.x / container.size.y
+	var fitted_size := container.size
+	if container_aspect > world_aspect:
+		fitted_size.x = container.size.y * world_aspect
+	else:
+		fitted_size.y = container.size.x / world_aspect
+
+	var fitted_position := container.position + ((container.size - fitted_size) * 0.5)
+	return Rect2(fitted_position, fitted_size)
 
 func _initialize_ship_slots() -> void:
 	ship_slots.clear()
@@ -471,7 +487,7 @@ func _assign_peer_role(peer_id: int) -> void:
 func _assign_peer_to_slot(peer_id: int, slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = peer_id
 	input_by_peer.erase(peer_id)
-	ship_slots[slot_index].reset(SHIP_START_POSITIONS[slot_index])
+	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 
 func _release_slot(slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = -1
@@ -611,3 +627,9 @@ func _is_typing_name() -> bool:
 	if ui.player_name_input == null:
 		return false
 	return ui.player_name_input.has_focus()
+
+func _to_world_position(normalized_position: Vector2) -> Vector2:
+	return WORLD_BOUNDS.position + Vector2(
+		normalized_position.x * WORLD_BOUNDS.size.x,
+		normalized_position.y * WORLD_BOUNDS.size.y
+	)
