@@ -9,7 +9,8 @@ var local_ip_label: Label
 var external_ip_label: Label
 var player_name_input: LineEdit
 var player_color_dropdown: OptionButton
-var peer_list_label: RichTextLabel
+var peer_list_container: VBoxContainer
+var peer_list_font_size := 0
 var host_button: Button
 var join_button: Button
 var disconnect_button: Button
@@ -253,18 +254,15 @@ func build(
 	)
 	left_vbox.add_child(players_heading)
 
-	peer_list_label = RichTextLabel.new()
-	peer_list_label.bbcode_enabled = true
-	peer_list_label.fit_content = false
-	peer_list_label.scroll_active = false
-	peer_list_label.selection_enabled = false
-	peer_list_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	peer_list_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	peer_list_label.add_theme_font_size_override(
-		"normal_font_size",
-		peer_list_label.get_theme_font_size("normal_font_size") + font_size_increase
-	)
-	left_vbox.add_child(peer_list_label)
+	peer_list_container = VBoxContainer.new()
+	peer_list_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	peer_list_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	peer_list_container.add_theme_constant_override("separation", 2)
+	left_vbox.add_child(peer_list_container)
+
+	var peer_list_font_probe := Label.new()
+	_bump_font_size(peer_list_font_probe, font_size_increase)
+	peer_list_font_size = peer_list_font_probe.get_theme_font_size("font_size")
 
 	_build_join_popup(owner, on_connect_pressed, font_size_increase)
 

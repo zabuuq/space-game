@@ -381,44 +381,64 @@ func _refresh_peer_list() -> void:
 	var internal_ips: Array[String] = peer_roster.get_sync_internal_ips()
 	var external_ips: Array[String] = peer_roster.get_sync_external_ips()
 	var names: Array[String] = peer_roster.get_sync_names()
+	if ui.peer_list_container == null:
+		return
+	for child in ui.peer_list_container.get_children():
+		child.queue_free()
 	var total: int = mini(
 		peer_ids.size(),
 		mini(internal_ips.size(), mini(external_ips.size(), names.size()))
 	)
 	if total <= 0:
-		ui.peer_list_label.text = ""
 		return
 
 	var local_id: int = multiplayer.get_unique_id()
-	var list_font_size: int = ui.peer_list_label.get_theme_font_size("normal_font_size")
-	var table_rows: PackedStringArray = []
+	var list_font_size: int = ui.peer_list_font_size
+	if list_font_size <= 0:
+		list_font_size = 16
 	var index: int = 0
 	while index < total:
 		var peer_id: int = peer_ids[index]
 		var display_value: String = names[index].strip_edges()
 		if display_value.is_empty():
 			display_value = "%s/%s" % [internal_ips[index], external_ips[index]]
-		var line := display_value
-		var color_code: String = DEFAULT_PEER_TEXT_COLOR
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_theme_constant_override("separation", 8)
+
+		var left_label := Label.new()
+		left_label.text = display_value
+		left_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		left_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		left_label.size_flags_stretch_ratio = 4.0
+		left_label.add_theme_font_size_override("font_size", list_font_size)
+		left_label.clip_text = true
+
+		var score_label := Label.new()
+		score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		score_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		score_label.size_flags_stretch_ratio = 1.0
+		score_label.add_theme_font_size_override("font_size", list_font_size)
+
+		var text_color := Color.html("#%s" % DEFAULT_PEER_TEXT_COLOR)
 		var color_index: int = peer_roster.get_peer_color_index(peer_id)
 		if color_index >= 0 and color_index < PLAYER_COLORS.size():
-			color_code = PLAYER_COLORS[color_index].to_html(false)
+			text_color = PLAYER_COLORS[color_index]
 		var score_value: int = int(peer_score_by_id.get(peer_id, 0))
+		score_label.text = str(score_value)
 
-		line = "[color=#%s]%s[/color]" % [color_code, line]
-		line = "[font_size=%d]%s[/font_size]" % [list_font_size, line]
-		var score_text := "[font_size=%d]%d[/font_size]" % [list_font_size, score_value]
+		left_label.add_theme_color_override("font_color", text_color)
+		score_label.add_theme_color_override("font_color", text_color)
 		if peer_id == local_id:
-			line = "[b]%s[/b]" % line
-			score_text = "[b]%s[/b]" % score_text
+			left_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+			left_label.add_theme_constant_override("outline_size", 1)
+			score_label.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 0.8))
+			score_label.add_theme_constant_override("outline_size", 1)
 
-		table_rows.append(
-			"[cell expand=4]%s[/cell][cell expand=1 align=right]%s[/cell]" %
-			[line, score_text]
-		)
+		row.add_child(left_label)
+		row.add_child(score_label)
+		ui.peer_list_container.add_child(row)
 		index += 1
-
-	ui.peer_list_label.text = "[table=2]%s[/table]" % "".join(table_rows)
 
 func _submit_local_identity() -> void:
 	if multiplayer.multiplayer_peer == null:
