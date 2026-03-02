@@ -60,6 +60,9 @@ func update_host(
 	position += forward * speed * delta
 	position = _wrap_to_bounds(position, bounds)
 
+func full_stop() -> void:
+	speed = 0.0
+
 func get_screen_points(play_rect: Rect2) -> PackedVector2Array:
 	if play_rect.size.x <= 0.0 or play_rect.size.y <= 0.0:
 		return PackedVector2Array()

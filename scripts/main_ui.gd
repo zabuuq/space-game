@@ -169,7 +169,7 @@ func build(
 	left_vbox.add_child(instructions_heading)
 
 	var instructions := Label.new()
-	instructions.text = "Host can press W/A/S/D keys to display directional arrow."
+	instructions.text = "W - Increase Speed\nS - Decrease Speed\nA - Turn Counter-Clockwise\nD - Turn Clockwise\nX - Full Stop"
 	instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_bump_font_size(instructions, font_size_increase)
 	left_vbox.add_child(instructions)
