@@ -61,6 +61,7 @@ func _ready() -> void:
 		ui.host_button,
 		ui.join_button,
 		ui.disconnect_button,
+		ui.host_join_row,
 		Callable(self, "_set_status")
 	)
 
@@ -77,6 +78,7 @@ func _ready() -> void:
 	set_process_unhandled_input(true)
 	set_process(true)
 	_set_status(STATUS_NOT_CONNECTED)
+	_hide_ship()
 	_update_local_ip_labels()
 	ip_info.request_external_ip()
 	_refresh_peer_list()
@@ -133,10 +135,10 @@ func _on_disconnect_pressed() -> void:
 	_disconnect_local_peer(true)
 
 func _disconnect_local_peer(update_status: bool) -> void:
-	connection_controller.disconnect(update_status)
+	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
 	_refresh_peer_list()
-	_reset_ship()
+	_hide_ship()
 
 func _set_status(value: String) -> void:
 	ui.status_label.text = "Connection Status: %s" % value
@@ -186,6 +188,10 @@ func _reset_ship() -> void:
 	ship_navigation.reset(WORLD_BOUNDS.position + (WORLD_BOUNDS.size * 0.5))
 	queue_redraw()
 
+func _hide_ship() -> void:
+	ship_navigation.hide()
+	queue_redraw()
+
 func _sync_ship_state_to_clients() -> void:
 	sync_ship_state.rpc(
 		ship_navigation.position,
@@ -200,7 +206,7 @@ func _process(delta: float) -> void:
 		return
 
 	if not ship_navigation.initialized:
-		_reset_ship()
+		return
 
 	ship_navigation.update_host(
 		delta,
@@ -230,6 +236,8 @@ func _get_right_section_rect() -> Rect2:
 	return ui.right_section.get_global_rect()
 
 func _draw() -> void:
+	if multiplayer.multiplayer_peer == null:
+		return
 	if not ship_navigation.initialized:
 		return
 

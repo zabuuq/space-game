@@ -8,6 +8,7 @@ var peer_list_label: RichTextLabel
 var host_button: Button
 var join_button: Button
 var disconnect_button: Button
+var host_join_row: HBoxContainer
 var join_popup: Window
 var join_ip_input: LineEdit
 var right_section: ColorRect
@@ -81,10 +82,10 @@ func build(
 	button_vbox.add_theme_constant_override("separation", 8)
 	button_margin.add_child(button_vbox)
 
-	var button_row := HBoxContainer.new()
-	button_row.add_theme_constant_override("separation", 8)
-	button_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	button_vbox.add_child(button_row)
+	host_join_row = HBoxContainer.new()
+	host_join_row.add_theme_constant_override("separation", 8)
+	host_join_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button_vbox.add_child(host_join_row)
 
 	host_button = Button.new()
 	host_button.text = "Host"
@@ -92,7 +93,7 @@ func build(
 	_bump_font_size(host_button, font_size_increase)
 	_apply_button_padding(host_button, 14.0, 8.0)
 	host_button.pressed.connect(on_host_pressed)
-	button_row.add_child(host_button)
+	host_join_row.add_child(host_button)
 
 	join_button = Button.new()
 	join_button.text = "Join"
@@ -100,7 +101,7 @@ func build(
 	_bump_font_size(join_button, font_size_increase)
 	_apply_button_padding(join_button, 14.0, 8.0)
 	join_button.pressed.connect(on_join_pressed)
-	button_row.add_child(join_button)
+	host_join_row.add_child(join_button)
 
 	disconnect_button = Button.new()
 	disconnect_button.text = "Disconnect"

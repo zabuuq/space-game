@@ -5,6 +5,7 @@ var multiplayer: MultiplayerAPI
 var host_button: Button
 var join_button: Button
 var disconnect_button: Button
+var host_join_row: HBoxContainer
 var set_status: Callable
 
 func configure(
@@ -12,12 +13,14 @@ func configure(
 	host: Button,
 	join: Button,
 	disconnect: Button,
+	host_join: HBoxContainer,
 	set_status_callback: Callable
 ) -> void:
 	multiplayer = multiplayer_api
 	host_button = host
 	join_button = join
 	disconnect_button = disconnect
+	host_join_row = host_join
 	set_status = set_status_callback
 
 func host(port: int) -> bool:
@@ -43,7 +46,7 @@ func join(ip: String, port: int) -> bool:
 	set_connected_controls(true)
 	return true
 
-func disconnect(update_status: bool) -> void:
+func disconnect_session(update_status: bool) -> void:
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = null
@@ -54,6 +57,5 @@ func disconnect(update_status: bool) -> void:
 	set_connected_controls(false)
 
 func set_connected_controls(is_connected: bool) -> void:
-	host_button.visible = not is_connected
-	join_button.visible = not is_connected
+	host_join_row.visible = not is_connected
 	disconnect_button.visible = is_connected

@@ -5,6 +5,7 @@ const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
 const MAX_SPEED := 0.35
 const SPEED_STEP := 0.05
 const ROTATION_SPEED := 2.8
+const START_ROTATION_RADIANS := PI
 const SHIP_RENDER_SCALE := 0.010
 const SHIP_MODEL_POINTS := [
 	Vector2(0, 1),
@@ -20,9 +21,15 @@ var initialized := false
 
 func reset(center: Vector2) -> void:
 	position = center
-	rotation_radians = 0.0
+	rotation_radians = START_ROTATION_RADIANS
 	speed = 0.0
 	initialized = true
+
+func hide() -> void:
+	position = Vector2.ZERO
+	rotation_radians = START_ROTATION_RADIANS
+	speed = 0.0
+	initialized = false
 
 func apply_network_state(new_position: Vector2, new_rotation: float, new_speed: float) -> void:
 	position = new_position
@@ -39,7 +46,7 @@ func update_host(
 	bounds: Rect2 = WORLD_BOUNDS
 ) -> void:
 	if not initialized:
-		reset(bounds.position + (bounds.size * 0.5))
+		return
 
 	var rotate_input := 0.0
 	if turn_left:
