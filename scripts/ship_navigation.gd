@@ -82,12 +82,59 @@ func get_screen_points(play_rect: Rect2, world_bounds: Rect2 = WORLD_BOUNDS) -> 
 	var center := play_rect.position + (normalized_position * play_rect.size)
 	var ship_scale := minf(play_rect.size.x, play_rect.size.y) * SHIP_RENDER_SCALE
 
+	return _build_transformed_points(center, ship_scale)
+
+func get_wrapped_screen_point_sets(
+	play_rect: Rect2,
+	world_bounds: Rect2 = WORLD_BOUNDS
+) -> Array[PackedVector2Array]:
+	if play_rect.size.x <= 0.0 or play_rect.size.y <= 0.0:
+		return []
+
+	var normalized_position := Vector2.ZERO
+	if world_bounds.size.x > 0.0:
+		normalized_position.x = (position.x - world_bounds.position.x) / world_bounds.size.x
+	if world_bounds.size.y > 0.0:
+		normalized_position.y = (position.y - world_bounds.position.y) / world_bounds.size.y
+
+	var base_center := play_rect.position + (normalized_position * play_rect.size)
+	var ship_scale := minf(play_rect.size.x, play_rect.size.y) * SHIP_RENDER_SCALE
+	var point_sets: Array[PackedVector2Array] = []
+	var x_offset: int = -1
+	while x_offset <= 1:
+		var y_offset: int = -1
+		while y_offset <= 1:
+			var wrapped_center := base_center + Vector2(
+				float(x_offset) * play_rect.size.x,
+				float(y_offset) * play_rect.size.y
+			)
+			var wrapped_points := _build_transformed_points(wrapped_center, ship_scale)
+			if _polyline_may_be_visible_in_rect(wrapped_points, play_rect):
+				point_sets.append(wrapped_points)
+			y_offset += 1
+		x_offset += 1
+
+	return point_sets
+
+func _build_transformed_points(center: Vector2, ship_scale: float) -> PackedVector2Array:
 	var transformed := PackedVector2Array()
 	for point in SHIP_MODEL_POINTS:
 		transformed.append(center + (point * ship_scale).rotated(rotation_radians))
 	# Close the shape by connecting back to the nose.
 	transformed.append(center + (SHIP_MODEL_POINTS[0] * ship_scale).rotated(rotation_radians))
 	return transformed
+
+func _polyline_may_be_visible_in_rect(points: PackedVector2Array, rect: Rect2) -> bool:
+	if points.is_empty():
+		return false
+
+	var points_rect := Rect2(points[0], Vector2.ZERO)
+	var index: int = 1
+	while index < points.size():
+		points_rect = points_rect.expand(points[index])
+		index += 1
+
+	return points_rect.intersects(rect, true)
 
 func _wrap_to_bounds(current: Vector2, bounds: Rect2) -> Vector2:
 	var min_x := bounds.position.x

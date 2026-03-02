@@ -1,6 +1,9 @@
 extends RefCounted
 class_name MainUi
 
+const APP_BACKGROUND_COLOR := Color(0.18, 0.18, 0.18, 1.0)
+const SECTION_SEPARATOR_COLOR := Color(0.30, 0.30, 0.30, 1.0)
+
 var status_label: Label
 var local_ip_label: Label
 var external_ip_label: Label
@@ -35,6 +38,12 @@ func build(
 	root_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.add_child(root_row)
 
+	var app_background := ColorRect.new()
+	app_background.color = APP_BACKGROUND_COLOR
+	app_background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(app_background)
+	layer.move_child(app_background, 0)
+
 	var quit_button := Button.new()
 	quit_button.text = "X"
 	_bump_font_size(quit_button, font_size_increase)
@@ -47,14 +56,18 @@ func build(
 	quit_button.pressed.connect(on_quit_pressed)
 	layer.add_child(quit_button)
 
-	var left_section := ColorRect.new()
-	left_section.color = Color(0.18, 0.18, 0.18, 1.0)
+	var left_section := Control.new()
 	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	left_section.size_flags_stretch_ratio = 1.0
 	root_row.add_child(left_section)
 
+	var section_separator := ColorRect.new()
+	section_separator.color = SECTION_SEPARATOR_COLOR
+	section_separator.custom_minimum_size = Vector2(2, 0)
+	root_row.add_child(section_separator)
+
 	right_section = ColorRect.new()
-	right_section.color = Color.BLACK
+	right_section.color = Color(0.0, 0.0, 0.0, 0.0)
 	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right_section.size_flags_stretch_ratio = 4.0
 	right_section.resized.connect(on_right_section_resized)

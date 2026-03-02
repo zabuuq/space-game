@@ -10,6 +10,7 @@ const PROJECTILE_SPEED := 260.0
 const PROJECTILE_MAX_TRAVEL := WORLD_BOUNDS.size.x * 0.25
 const PROJECTILE_RADIUS := 3.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
+const PROJECTILE_RENDER_SIDES := 12
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
@@ -471,31 +472,191 @@ func _unhandled_input(event: InputEvent) -> void:
 	request_fire_projectile.rpc_id(1)
 
 func _draw() -> void:
-	if multiplayer.multiplayer_peer == null:
+	var play_rect: Rect2 = _get_play_render_rect()
+	draw_rect(play_rect, Color.BLACK, true)
+
+	if multiplayer.multiplayer_peer != null:
+		var index: int = 0
+		for ship in ship_slots:
+			if not ship.initialized:
+				index += 1
+				continue
+
+			var point_sets := ship.get_wrapped_screen_point_sets(play_rect, WORLD_BOUNDS)
+			for ship_points in point_sets:
+				_draw_clipped_polyline(ship_points, SHIP_COLORS[index], SHIP_OUTLINE_WIDTH, play_rect)
+
+			index += 1
+
+		for projectile in projectiles:
+			var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
+			var slot_index: int = int(projectile.get("slot_index", -1))
+			var color: Color = Color.WHITE
+			if slot_index >= 0 and slot_index < SHIP_COLORS.size():
+				color = SHIP_COLORS[slot_index]
+			_draw_wrapped_projectile(world_position, play_rect, color)
+
+func _draw_wrapped_projectile(world_position: Vector2, play_rect: Rect2, color: Color) -> void:
+	var base_center := _world_to_screen_position(world_position, play_rect)
+	var wrapped_centers := _get_wrapped_centers(base_center, play_rect, PROJECTILE_RADIUS)
+	for center in wrapped_centers:
+		var projectile_poly := _build_circle_polygon(center, PROJECTILE_RADIUS, PROJECTILE_RENDER_SIDES)
+		var clipped_poly := _clip_polygon_to_rect(projectile_poly, play_rect)
+		if clipped_poly.size() >= 3:
+			draw_colored_polygon(clipped_poly, color)
+
+func _get_wrapped_centers(base_center: Vector2, play_rect: Rect2, radius: float) -> Array[Vector2]:
+	var centers: Array[Vector2] = []
+	var x_offset: int = -1
+	while x_offset <= 1:
+		var y_offset: int = -1
+		while y_offset <= 1:
+			var center := base_center + Vector2(
+				float(x_offset) * play_rect.size.x,
+				float(y_offset) * play_rect.size.y
+			)
+			if _circle_may_be_visible(center, radius, play_rect):
+				centers.append(center)
+			y_offset += 1
+		x_offset += 1
+	return centers
+
+func _circle_may_be_visible(center: Vector2, radius: float, rect: Rect2) -> bool:
+	var min_x: float = rect.position.x - radius
+	var max_x: float = rect.position.x + rect.size.x + radius
+	var min_y: float = rect.position.y - radius
+	var max_y: float = rect.position.y + rect.size.y + radius
+	return center.x >= min_x and center.x <= max_x and center.y >= min_y and center.y <= max_y
+
+func _build_circle_polygon(center: Vector2, radius: float, sides: int) -> PackedVector2Array:
+	var polygon := PackedVector2Array()
+	if sides < 3:
+		return polygon
+
+	var step := TAU / float(sides)
+	var index: int = 0
+	while index < sides:
+		var angle := float(index) * step
+		polygon.append(center + Vector2(cos(angle), sin(angle)) * radius)
+		index += 1
+	return polygon
+
+func _draw_clipped_polyline(points: PackedVector2Array, color: Color, width: float, clip_rect: Rect2) -> void:
+	if points.size() < 2:
 		return
 
-	var play_rect: Rect2 = _get_play_render_rect()
 	var index: int = 0
-	for ship in ship_slots:
-		if not ship.initialized:
-			index += 1
-			continue
-
-		var ship_points := ship.get_screen_points(play_rect, WORLD_BOUNDS)
-		if ship_points.size() < 2:
-			index += 1
-			continue
-
-		draw_polyline(ship_points, SHIP_COLORS[index], SHIP_OUTLINE_WIDTH, true)
+	while index < points.size() - 1:
+		var clipped := _clip_segment_to_rect(points[index], points[index + 1], clip_rect)
+		if clipped.get("visible", false):
+			var from_point: Vector2 = clipped.get("from", Vector2.ZERO)
+			var to_point: Vector2 = clipped.get("to", Vector2.ZERO)
+			draw_line(from_point, to_point, color, width, true)
 		index += 1
 
-	for projectile in projectiles:
-		var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
-		var slot_index: int = int(projectile.get("slot_index", -1))
-		var color: Color = Color.WHITE
-		if slot_index >= 0 and slot_index < SHIP_COLORS.size():
-			color = SHIP_COLORS[slot_index]
-		draw_circle(_world_to_screen_position(world_position, play_rect), PROJECTILE_RADIUS, color)
+func _clip_segment_to_rect(from_point: Vector2, to_point: Vector2, rect: Rect2) -> Dictionary:
+	var x_min: float = rect.position.x
+	var x_max: float = rect.position.x + rect.size.x
+	var y_min: float = rect.position.y
+	var y_max: float = rect.position.y + rect.size.y
+	var dx: float = to_point.x - from_point.x
+	var dy: float = to_point.y - from_point.y
+	var t0 := 0.0
+	var t1 := 1.0
+	var p: Array[float] = [-dx, dx, -dy, dy]
+	var q: Array[float] = [
+		from_point.x - x_min,
+		x_max - from_point.x,
+		from_point.y - y_min,
+		y_max - from_point.y
+	]
+
+	var index: int = 0
+	while index < 4:
+		var p_value: float = p[index]
+		var q_value: float = q[index]
+		if is_zero_approx(p_value):
+			if q_value < 0.0:
+				return {"visible": false}
+			index += 1
+			continue
+
+		var ratio: float = q_value / p_value
+		if p_value < 0.0:
+			if ratio > t1:
+				return {"visible": false}
+			t0 = maxf(t0, ratio)
+		else:
+			if ratio < t0:
+				return {"visible": false}
+			t1 = minf(t1, ratio)
+		index += 1
+
+	var clipped_from := from_point + (Vector2(dx, dy) * t0)
+	var clipped_to := from_point + (Vector2(dx, dy) * t1)
+	return {
+		"visible": true,
+		"from": clipped_from,
+		"to": clipped_to
+	}
+
+func _clip_polygon_to_rect(polygon: PackedVector2Array, rect: Rect2) -> PackedVector2Array:
+	var clipped := polygon
+	clipped = _clip_polygon_against_vertical(clipped, rect.position.x, true)
+	clipped = _clip_polygon_against_vertical(clipped, rect.position.x + rect.size.x, false)
+	clipped = _clip_polygon_against_horizontal(clipped, rect.position.y, true)
+	clipped = _clip_polygon_against_horizontal(clipped, rect.position.y + rect.size.y, false)
+	return clipped
+
+func _clip_polygon_against_vertical(
+	polygon: PackedVector2Array,
+	x_edge: float,
+	keep_greater: bool
+) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	if polygon.is_empty():
+		return result
+
+	var previous: Vector2 = polygon[polygon.size() - 1]
+	var previous_inside: bool = previous.x >= x_edge if keep_greater else previous.x <= x_edge
+	for current in polygon:
+		var current_inside: bool = current.x >= x_edge if keep_greater else current.x <= x_edge
+		if current_inside != previous_inside:
+			var delta_x: float = current.x - previous.x
+			if not is_zero_approx(delta_x):
+				var t: float = (x_edge - previous.x) / delta_x
+				result.append(previous + ((current - previous) * t))
+		if current_inside:
+			result.append(current)
+		previous = current
+		previous_inside = current_inside
+
+	return result
+
+func _clip_polygon_against_horizontal(
+	polygon: PackedVector2Array,
+	y_edge: float,
+	keep_greater: bool
+) -> PackedVector2Array:
+	var result := PackedVector2Array()
+	if polygon.is_empty():
+		return result
+
+	var previous: Vector2 = polygon[polygon.size() - 1]
+	var previous_inside: bool = previous.y >= y_edge if keep_greater else previous.y <= y_edge
+	for current in polygon:
+		var current_inside: bool = current.y >= y_edge if keep_greater else current.y <= y_edge
+		if current_inside != previous_inside:
+			var delta_y: float = current.y - previous.y
+			if not is_zero_approx(delta_y):
+				var t: float = (y_edge - previous.y) / delta_y
+				result.append(previous + ((current - previous) * t))
+		if current_inside:
+			result.append(current)
+		previous = current
+		previous_inside = current_inside
+
+	return result
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
