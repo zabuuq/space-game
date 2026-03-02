@@ -8,6 +8,7 @@ var status_label: Label
 var local_ip_label: Label
 var external_ip_label: Label
 var player_name_input: LineEdit
+var player_color_dropdown: OptionButton
 var peer_list_label: RichTextLabel
 var host_button: Button
 var join_button: Button
@@ -16,6 +17,7 @@ var host_join_row: HBoxContainer
 var join_popup: Window
 var join_ip_input: LineEdit
 var right_section: ColorRect
+var _color_option_icons: Array = []
 
 func build(
 	owner: Node,
@@ -28,6 +30,8 @@ func build(
 	on_disconnect_pressed: Callable,
 	on_connect_pressed: Callable,
 	on_name_changed: Callable,
+	on_color_selected: Callable,
+	ship_colors: Array,
 	on_right_section_resized: Callable
 ) -> void:
 	var layer := CanvasLayer.new()
@@ -166,17 +170,40 @@ func build(
 	address_grid.add_child(port_value)
 
 	var name_title := Label.new()
-	name_title.text = "Name:"
+	name_title.text = "Name/Color:"
 	_bump_font_size(name_title, font_size_increase)
 	left_vbox.add_child(name_title)
+
+	var name_color_row := HBoxContainer.new()
+	name_color_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_color_row.add_theme_constant_override("separation", 0)
+	left_vbox.add_child(name_color_row)
 
 	player_name_input = LineEdit.new()
 	player_name_input.placeholder_text = "Enter name"
 	player_name_input.max_length = 24
 	player_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	player_name_input.size_flags_stretch_ratio = 3.0
 	_bump_font_size(player_name_input, font_size_increase)
 	player_name_input.text_changed.connect(on_name_changed)
-	left_vbox.add_child(player_name_input)
+	name_color_row.add_child(player_name_input)
+
+	player_color_dropdown = OptionButton.new()
+	player_color_dropdown.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	player_color_dropdown.size_flags_stretch_ratio = 1.0
+	player_color_dropdown.custom_minimum_size = Vector2(0, 28)
+	_bump_font_size(player_color_dropdown, font_size_increase)
+	_color_option_icons.clear()
+	for color in ship_colors:
+		var swatch_icon := _build_color_swatch_icon(color, 80, 18)
+		_color_option_icons.append(swatch_icon)
+		player_color_dropdown.add_icon_item(swatch_icon, " ")
+	var popup := player_color_dropdown.get_popup()
+	for item_index in range(popup.get_item_count()):
+		popup.set_item_as_checkable(item_index, false)
+	player_color_dropdown.item_selected.connect(on_color_selected)
+	player_color_dropdown.select(-1)
+	name_color_row.add_child(player_color_dropdown)
 
 	var instructions_top_separator := HSeparator.new()
 	left_vbox.add_child(instructions_top_separator)
@@ -281,3 +308,16 @@ func _apply_button_padding(button: Button, horizontal: float, vertical: float) -
 		style_copy.set_content_margin(SIDE_TOP, vertical)
 		style_copy.set_content_margin(SIDE_BOTTOM, vertical)
 		button.add_theme_stylebox_override(state, style_copy)
+
+func set_selected_color_index(color_index: int) -> void:
+	if player_color_dropdown == null:
+		return
+	if color_index >= 0 and color_index < player_color_dropdown.get_item_count():
+		player_color_dropdown.select(color_index)
+		return
+	player_color_dropdown.select(-1)
+
+func _build_color_swatch_icon(color: Color, width: int, height: int) -> Texture2D:
+	var image := Image.create(width, height, false, Image.FORMAT_RGBA8)
+	image.fill(color)
+	return ImageTexture.create_from_image(image)

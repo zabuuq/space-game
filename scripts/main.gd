@@ -17,13 +17,16 @@ const STATUS_HOSTING := "Hosting"
 const STATUS_CONNECTED_TO_HOST := "Connected to host"
 const STATUS_OBSERVER := "Observer"
 const DEFAULT_PEER_TEXT_COLOR := "ffffff"
-const SHIP_COLORS: Array[Color] = [
+const PLAYER_COLORS: Array[Color] = [
+	Color(0.93, 0.93, 0.93), # white
 	Color(0.97, 0.33, 0.33), # red
 	Color(0.20, 0.63, 0.98), # blue
 	Color(0.30, 0.84, 0.39), # green
 	Color(1.00, 0.79, 0.27), # amber
 	Color(0.84, 0.44, 0.96), # violet
-	Color(0.29, 0.90, 0.88)  # cyan
+	Color(0.29, 0.90, 0.88), # cyan
+	Color(1.00, 0.58, 0.24), # orange
+	Color(0.98, 0.31, 0.67)  # pink
 ]
 
 const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
@@ -51,6 +54,7 @@ var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
 var local_player_name: String = ""
+var local_preferred_color_index := -1
 var projectiles: Array[Dictionary] = []
 
 @rpc("authority", "call_remote", "unreliable")
@@ -181,6 +185,8 @@ func _ready() -> void:
 		Callable(self, "_on_disconnect_pressed"),
 		Callable(self, "_on_connect_pressed"),
 		Callable(self, "_on_player_name_changed"),
+		Callable(self, "_on_player_color_selected"),
+		PLAYER_COLORS,
 		Callable(self, "queue_redraw")
 	)
 
@@ -228,7 +234,7 @@ func _on_join_pressed() -> void:
 
 func _on_connect_pressed() -> void:
 	ui.join_popup.hide()
-	var ip := ui.join_ip_input.text.strip_edges()
+	var ip: String = ui.join_ip_input.text.strip_edges()
 	if ip.is_empty():
 		_set_status(STATUS_NOT_CONNECTED)
 		return
@@ -286,13 +292,44 @@ func _disconnect_local_peer(update_status: bool) -> void:
 func _set_status(value: String) -> void:
 	ui.status_label.text = "Connection Status: %s" % value
 
+func _set_local_color_index(color_index: int) -> void:
+	local_preferred_color_index = color_index
+	if ui.player_color_dropdown != null:
+		ui.set_selected_color_index(color_index)
+
+func _sync_local_color_from_roster() -> void:
+	if multiplayer.multiplayer_peer == null:
+		return
+	var local_id: int = multiplayer.get_unique_id()
+	var synced_color_index: int = peer_roster.get_peer_color_index(local_id)
+	if synced_color_index == -1:
+		return
+	_set_local_color_index(synced_color_index)
+
+func _resolve_color_for_peer(peer_id: int, preferred_color_index: int) -> int:
+	return peer_roster.resolve_color_index(preferred_color_index, PLAYER_COLORS.size(), peer_id)
+
+func _get_ship_color_for_slot(slot_index: int) -> Color:
+	if slot_index < 0 or slot_index >= ship_owner_by_slot.size():
+		return Color.WHITE
+	var owner_id: int = ship_owner_by_slot[slot_index]
+	if owner_id == -1:
+		return Color.WHITE
+	var color_index: int = peer_roster.get_peer_color_index(owner_id)
+	if color_index < 0 or color_index >= PLAYER_COLORS.size():
+		return Color.WHITE
+	return PLAYER_COLORS[color_index]
+
 func _initialize_host_roster() -> void:
 	var host_id: int = multiplayer.get_unique_id()
+	var resolved_color_index := _resolve_color_for_peer(host_id, local_preferred_color_index)
+	_set_local_color_index(resolved_color_index)
 	peer_roster.register_host(
 		host_id,
 		ip_info.local_internal_ip,
 		ip_info.local_external_ip,
-		local_player_name
+		local_player_name,
+		resolved_color_index
 	)
 	_broadcast_peer_roster()
 
@@ -304,7 +341,8 @@ func _broadcast_peer_roster() -> void:
 		peer_roster.get_sync_peer_ids(),
 		peer_roster.get_sync_internal_ips(),
 		peer_roster.get_sync_external_ips(),
-		peer_roster.get_sync_names()
+		peer_roster.get_sync_names(),
+		peer_roster.get_sync_color_indices()
 	)
 
 @rpc("authority", "call_local", "reliable")
@@ -312,9 +350,11 @@ func sync_peer_roster(
 	peer_ids: Array[int],
 	internal_ips: Array[String],
 	external_ips: Array[String],
-	names: Array[String]
+	names: Array[String],
+	color_indices: Array[int]
 ) -> void:
-	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names)
+	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names, color_indices)
+	_sync_local_color_from_roster()
 	_refresh_peer_list()
 
 func _refresh_peer_list() -> void:
@@ -340,10 +380,10 @@ func _refresh_peer_list() -> void:
 		if display_value.is_empty():
 			display_value = "%s/%s" % [internal_ips[index], external_ips[index]]
 		var line := display_value
-		var slot_index: int = _get_slot_index_for_peer(peer_id)
 		var color_code: String = DEFAULT_PEER_TEXT_COLOR
-		if slot_index >= 0 and slot_index < SHIP_COLORS.size():
-			color_code = SHIP_COLORS[slot_index].to_html(false)
+		var color_index: int = peer_roster.get_peer_color_index(peer_id)
+		if color_index >= 0 and color_index < PLAYER_COLORS.size():
+			color_code = PLAYER_COLORS[color_index].to_html(false)
 
 		line = "[color=#%s]%s[/color]" % [color_code, line]
 		line = "[font_size=%d]%s[/font_size]" % [list_font_size, line]
@@ -361,11 +401,14 @@ func _submit_local_identity() -> void:
 
 	if multiplayer.is_server():
 		var host_id: int = multiplayer.get_unique_id()
+		var resolved_color_index := _resolve_color_for_peer(host_id, local_preferred_color_index)
+		_set_local_color_index(resolved_color_index)
 		peer_roster.upsert_peer(
 			host_id,
 			ip_info.local_internal_ip,
 			ip_info.local_external_ip,
-			local_player_name
+			local_player_name,
+			resolved_color_index
 		)
 		peer_roster.ensure_peer_in_order(host_id)
 		_broadcast_peer_roster()
@@ -374,16 +417,29 @@ func _submit_local_identity() -> void:
 			1,
 			ip_info.local_internal_ip,
 			ip_info.local_external_ip,
-			local_player_name
+			local_player_name,
+			local_preferred_color_index
 		)
 
 @rpc("any_peer", "reliable")
-func submit_peer_info(internal_ip: String, external_ip: String, player_name: String) -> void:
+func submit_peer_info(
+	internal_ip: String,
+	external_ip: String,
+	player_name: String,
+	preferred_color_index: int
+) -> void:
 	if not multiplayer.is_server():
 		return
 
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	peer_roster.upsert_peer(sender_id, internal_ip, external_ip, player_name)
+	var resolved_color_index := _resolve_color_for_peer(sender_id, preferred_color_index)
+	peer_roster.upsert_peer(
+		sender_id,
+		internal_ip,
+		external_ip,
+		player_name,
+		resolved_color_index
+	)
 	_broadcast_peer_roster()
 
 func _update_local_ip_labels() -> void:
@@ -396,6 +452,11 @@ func _on_ip_info_updated() -> void:
 
 func _on_player_name_changed(value: String) -> void:
 	local_player_name = value.strip_edges()
+	_submit_local_identity()
+	_refresh_peer_list()
+
+func _on_player_color_selected(selected_index: int) -> void:
+	_set_local_color_index(selected_index)
 	_submit_local_identity()
 	_refresh_peer_list()
 
@@ -483,17 +544,16 @@ func _draw() -> void:
 				continue
 
 			var point_sets := ship.get_wrapped_screen_point_sets(play_rect, WORLD_BOUNDS)
+			var ship_color: Color = _get_ship_color_for_slot(index)
 			for ship_points in point_sets:
-				_draw_clipped_polyline(ship_points, SHIP_COLORS[index], SHIP_OUTLINE_WIDTH, play_rect)
+				_draw_clipped_polyline(ship_points, ship_color, SHIP_OUTLINE_WIDTH, play_rect)
 
 			index += 1
 
 		for projectile in projectiles:
 			var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
 			var slot_index: int = int(projectile.get("slot_index", -1))
-			var color: Color = Color.WHITE
-			if slot_index >= 0 and slot_index < SHIP_COLORS.size():
-				color = SHIP_COLORS[slot_index]
+			var color: Color = _get_ship_color_for_slot(slot_index)
 			_draw_wrapped_projectile(world_position, play_rect, color)
 
 func _draw_wrapped_projectile(world_position: Vector2, play_rect: Rect2, color: Color) -> void:
