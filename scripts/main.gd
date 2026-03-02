@@ -171,6 +171,8 @@ func _ready() -> void:
 	set_process(true)
 	_set_status(STATUS_NOT_CONNECTED)
 	_update_local_ip_labels()
+	if ui.player_name_input != null:
+		ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ip_info.request_external_ip()
 	_refresh_peer_list()
 	queue_redraw()
@@ -360,6 +362,11 @@ func _on_player_name_changed(value: String) -> void:
 	_submit_local_identity()
 	_refresh_peer_list()
 
+func _on_player_name_submitted(_value: String) -> void:
+	if ui.player_name_input == null:
+		return
+	ui.player_name_input.release_focus()
+
 func _on_quit_pressed() -> void:
 	get_tree().quit()
 
@@ -378,6 +385,10 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
+	if event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event != null and mouse_event.pressed:
+			_release_name_focus_if_clicked_outside(mouse_event.position)
 	if _is_typing_name():
 		return
 	if not (event is InputEventKey):
@@ -627,6 +638,17 @@ func _is_typing_name() -> bool:
 	if ui.player_name_input == null:
 		return false
 	return ui.player_name_input.has_focus()
+
+func _release_name_focus_if_clicked_outside(click_position: Vector2) -> void:
+	if ui.player_name_input == null:
+		return
+	if not ui.player_name_input.has_focus():
+		return
+
+	var name_rect: Rect2 = ui.player_name_input.get_global_rect()
+	if name_rect.has_point(click_position):
+		return
+	ui.player_name_input.release_focus()
 
 func _to_world_position(normalized_position: Vector2) -> Vector2:
 	return WORLD_BOUNDS.position + Vector2(
