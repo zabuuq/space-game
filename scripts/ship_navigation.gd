@@ -1,14 +1,16 @@
 extends RefCounted
 class_name ShipNavigation
 
-const MAX_SPEED := 200.0
-const SPEED_STEP := 28
+const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
+const MAX_SPEED := 0.35
+const SPEED_STEP := 0.05
 const ROTATION_SPEED := 2.8
-const SHIP_POINTS := [
-	Vector2(0, 24),
-	Vector2(18, -24),
-	Vector2(0, -18),
-	Vector2(-18, -24)
+const SHIP_RENDER_SCALE := 0.010
+const SHIP_MODEL_POINTS := [
+	Vector2(0, 1),
+	Vector2(0.75, -1),
+	Vector2(0, -0.75),
+	Vector2(-0.75, -1)
 ]
 
 var position: Vector2 = Vector2.ZERO
@@ -33,7 +35,7 @@ func update_host(
 	turn_left: bool,
 	turn_right: bool,
 	accelerate: bool,
-	bounds: Rect2
+	bounds: Rect2 = WORLD_BOUNDS
 ) -> void:
 	if not initialized:
 		reset(bounds.position + (bounds.size * 0.5))
@@ -58,12 +60,21 @@ func update_host(
 func decrease_speed_once() -> void:
 	speed = clampf(speed - SPEED_STEP, 0.0, MAX_SPEED)
 
-func get_transformed_points() -> PackedVector2Array:
+func get_screen_points(play_rect: Rect2) -> PackedVector2Array:
+	if play_rect.size.x <= 0.0 or play_rect.size.y <= 0.0:
+		return PackedVector2Array()
+
+	var center := play_rect.position + Vector2(
+		position.x * play_rect.size.x,
+		position.y * play_rect.size.y
+	)
+	var ship_scale := minf(play_rect.size.x, play_rect.size.y) * SHIP_RENDER_SCALE
+
 	var transformed := PackedVector2Array()
-	for point in SHIP_POINTS:
-		transformed.append(position + point.rotated(rotation_radians))
+	for point in SHIP_MODEL_POINTS:
+		transformed.append(center + (point * ship_scale).rotated(rotation_radians))
 	# Close the shape by connecting back to the nose.
-	transformed.append(position + SHIP_POINTS[0].rotated(rotation_radians))
+	transformed.append(center + (SHIP_MODEL_POINTS[0] * ship_scale).rotated(rotation_radians))
 	return transformed
 
 func _wrap_to_bounds(current: Vector2, bounds: Rect2) -> Vector2:

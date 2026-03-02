@@ -4,6 +4,7 @@ const DEFAULT_PORT := 56419
 const FONT_SIZE_INCREASE := 3
 const QUIT_BUTTON_SIZE := 32.0
 const SHIP_OUTLINE_WIDTH := 3.0
+const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
 
 const SHIP_NAVIGATION_SCRIPT := preload("res://scripts/ship_navigation.gd")
 const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
@@ -178,7 +179,7 @@ func _on_quit_pressed() -> void:
 	get_tree().quit()
 
 func _reset_ship() -> void:
-	ship_navigation.reset(_get_right_section_center())
+	ship_navigation.reset(WORLD_BOUNDS.position + (WORLD_BOUNDS.size * 0.5))
 	queue_redraw()
 
 func _sync_ship_state_to_clients() -> void:
@@ -202,7 +203,7 @@ func _process(delta: float) -> void:
 		Input.is_physical_key_pressed(KEY_A),
 		Input.is_physical_key_pressed(KEY_D),
 		Input.is_physical_key_pressed(KEY_W),
-		_get_right_section_rect()
+		WORLD_BOUNDS
 	)
 
 	_sync_ship_state_to_clients()
@@ -222,12 +223,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		_sync_ship_state_to_clients()
 		queue_redraw()
 
-func _get_right_section_center() -> Vector2:
-	if ui.right_section == null:
-		return get_viewport_rect().size * 0.5
-	var right_rect := ui.right_section.get_global_rect()
-	return right_rect.position + (right_rect.size * 0.5)
-
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
 		return get_viewport_rect()
@@ -237,4 +232,13 @@ func _draw() -> void:
 	if not ship_navigation.initialized:
 		return
 
-	draw_polyline(ship_navigation.get_transformed_points(), Color.ORANGE, SHIP_OUTLINE_WIDTH, true)
+	var ship_points := ship_navigation.get_screen_points(_get_right_section_rect())
+	if ship_points.size() < 2:
+		return
+
+	draw_polyline(
+		ship_points,
+		Color.ORANGE,
+		SHIP_OUTLINE_WIDTH,
+		true
+	)
