@@ -50,13 +50,13 @@ func build(
 	var left_section := ColorRect.new()
 	left_section.color = Color(0.18, 0.18, 0.18, 1.0)
 	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_section.size_flags_stretch_ratio = 0.6
+	left_section.size_flags_stretch_ratio = 1.0
 	root_row.add_child(left_section)
 
 	right_section = ColorRect.new()
 	right_section.color = Color.BLACK
 	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_section.size_flags_stretch_ratio = 3.4
+	right_section.size_flags_stretch_ratio = 3.0
 	right_section.resized.connect(on_right_section_resized)
 	root_row.add_child(right_section)
 
@@ -93,7 +93,7 @@ func build(
 	host_button.text = "Host"
 	host_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(host_button, font_size_increase)
-	_apply_button_padding(host_button, 14.0, 8.0)
+	_apply_button_padding(host_button, 8.0, 6.0)
 	host_button.pressed.connect(on_host_pressed)
 	host_join_row.add_child(host_button)
 
@@ -101,7 +101,7 @@ func build(
 	join_button.text = "Join"
 	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(join_button, font_size_increase)
-	_apply_button_padding(join_button, 14.0, 8.0)
+	_apply_button_padding(join_button, 8.0, 6.0)
 	join_button.pressed.connect(on_join_pressed)
 	host_join_row.add_child(join_button)
 
@@ -109,7 +109,7 @@ func build(
 	disconnect_button.text = "Disconnect"
 	disconnect_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(disconnect_button, font_size_increase)
-	_apply_button_padding(disconnect_button, 14.0, 8.0)
+	_apply_button_padding(disconnect_button, 8.0, 6.0)
 	disconnect_button.visible = false
 	disconnect_button.pressed.connect(on_disconnect_pressed)
 	button_vbox.add_child(disconnect_button)
@@ -155,13 +155,14 @@ func build(
 	var name_title := Label.new()
 	name_title.text = "Name:"
 	_bump_font_size(name_title, font_size_increase)
-	address_grid.add_child(name_title)
+	left_vbox.add_child(name_title)
 
 	player_name_input = LineEdit.new()
 	player_name_input.placeholder_text = "Enter name"
+	player_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(player_name_input, font_size_increase)
 	player_name_input.text_changed.connect(on_name_changed)
-	address_grid.add_child(player_name_input)
+	left_vbox.add_child(player_name_input)
 
 	var instructions_top_separator := HSeparator.new()
 	left_vbox.add_child(instructions_top_separator)

@@ -45,7 +45,7 @@ var ship_slots: Array[ShipNavigation] = []
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
-var local_player_name := ""
+var local_player_name: String = ""
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -292,6 +292,7 @@ func _refresh_peer_list() -> void:
 		return
 
 	var local_id: int = multiplayer.get_unique_id()
+	var list_font_size: int = ui.peer_list_label.get_theme_font_size("normal_font_size")
 	var lines: PackedStringArray = []
 	var index: int = 0
 	while index < total:
@@ -306,6 +307,7 @@ func _refresh_peer_list() -> void:
 			color_code = SHIP_COLORS[slot_index].to_html(false)
 
 		line = "[color=#%s]%s[/color]" % [color_code, line]
+		line = "[font_size=%d]%s[/font_size]" % [list_font_size, line]
 		if peer_id == local_id:
 			line = "[b]%s[/b]" % line
 
