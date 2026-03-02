@@ -20,6 +20,10 @@ Simple Godot 4 multiplayer demo using GDScript.
 - Up to six players can control ships at once.
   - Additional connected peers are observers and show `Connection Status: Observer`.
   - If a controlling client disconnects, the next observer in queue takes over that ship, and the ship resets to its starting position.
+- Each controlled ship has a unique color.
+- Player roster entries are color-matched to controlled ship color.
+  - Roster order remains host first, then clients by connection order.
+  - Each user sees only their own roster line in bold on their local instance.
 - Ship starting slots use a `3 x 2` grid in this order:
   - Player 1 (host): upper left
   - Player 2: upper right

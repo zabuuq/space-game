@@ -11,6 +11,15 @@ const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
 const STATUS_CONNECTED_TO_HOST := "Connected to host"
 const STATUS_OBSERVER := "Observer"
+const DEFAULT_PEER_TEXT_COLOR := "ffffff"
+const SHIP_COLORS: Array[Color] = [
+	Color(0.97, 0.33, 0.33), # red
+	Color(0.20, 0.63, 0.98), # blue
+	Color(0.30, 0.84, 0.39), # green
+	Color(1.00, 0.79, 0.27), # amber
+	Color(0.84, 0.44, 0.96), # violet
+	Color(0.29, 0.90, 0.88)  # cyan
+]
 
 const SHIP_START_POSITIONS: Array[Vector2] = [
 	Vector2(1.0 / 6.0, 1.0 / 4.0),
@@ -80,6 +89,7 @@ func sync_ship_roster(
 
 	observer_queue = observer_ids.duplicate()
 	_update_local_connection_status_from_roles()
+	_refresh_peer_list()
 	queue_redraw()
 
 @rpc("any_peer", "unreliable")
@@ -169,6 +179,7 @@ func _on_host_pressed() -> void:
 
 	_initialize_host_roster()
 	_start_host_ship_session()
+	_refresh_peer_list()
 	_sync_ships_to_clients()
 	queue_redraw()
 
@@ -255,7 +266,33 @@ func sync_peer_roster(peer_ids: Array[int], internal_ips: Array[String], externa
 	_refresh_peer_list()
 
 func _refresh_peer_list() -> void:
-	ui.peer_list_label.text = peer_roster.format_bbcode()
+	var peer_ids: Array[int] = peer_roster.get_sync_peer_ids()
+	var internal_ips: Array[String] = peer_roster.get_sync_internal_ips()
+	var external_ips: Array[String] = peer_roster.get_sync_external_ips()
+	var total: int = mini(peer_ids.size(), mini(internal_ips.size(), external_ips.size()))
+	if total <= 0:
+		ui.peer_list_label.text = ""
+		return
+
+	var local_id: int = multiplayer.get_unique_id()
+	var lines: PackedStringArray = []
+	var index: int = 0
+	while index < total:
+		var peer_id: int = peer_ids[index]
+		var line := "%s/%s" % [internal_ips[index], external_ips[index]]
+		var slot_index: int = _get_slot_index_for_peer(peer_id)
+		var color_code: String = DEFAULT_PEER_TEXT_COLOR
+		if slot_index >= 0 and slot_index < SHIP_COLORS.size():
+			color_code = SHIP_COLORS[slot_index].to_html(false)
+
+		line = "[color=#%s]%s[/color]" % [color_code, line]
+		if peer_id == local_id:
+			line = "[b]%s[/b]" % line
+
+		lines.append(line)
+		index += 1
+
+	ui.peer_list_label.text = "\n".join(lines)
 
 func _submit_local_identity() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -333,15 +370,19 @@ func _draw() -> void:
 		return
 
 	var play_rect: Rect2 = _get_right_section_rect()
+	var index: int = 0
 	for ship in ship_slots:
 		if not ship.initialized:
+			index += 1
 			continue
 
 		var ship_points := ship.get_screen_points(play_rect)
 		if ship_points.size() < 2:
+			index += 1
 			continue
 
-		draw_polyline(ship_points, Color.ORANGE, SHIP_OUTLINE_WIDTH, true)
+		draw_polyline(ship_points, SHIP_COLORS[index], SHIP_OUTLINE_WIDTH, true)
+		index += 1
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
