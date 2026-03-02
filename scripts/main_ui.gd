@@ -1,0 +1,175 @@
+extends RefCounted
+class_name MainUi
+
+var status_label: Label
+var local_ip_label: Label
+var external_ip_label: Label
+var peer_list_label: RichTextLabel
+var host_button: Button
+var join_button: Button
+var disconnect_button: Button
+var join_popup: Window
+var join_ip_input: LineEdit
+var right_section: ColorRect
+
+func build(
+	owner: Node,
+	default_port: int,
+	font_size_increase: int,
+	quit_button_size: float,
+	on_quit_pressed: Callable,
+	on_host_pressed: Callable,
+	on_join_pressed: Callable,
+	on_disconnect_pressed: Callable,
+	on_connect_pressed: Callable,
+	on_right_section_resized: Callable
+) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = -1
+	owner.add_child(layer)
+
+	var root_row := HBoxContainer.new()
+	root_row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	layer.add_child(root_row)
+
+	var quit_button := Button.new()
+	quit_button.text = "X"
+	_bump_font_size(quit_button, font_size_increase)
+	_apply_button_padding(quit_button, 6.0, 4.0)
+	quit_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	quit_button.offset_left = 8
+	quit_button.offset_top = 8
+	quit_button.offset_right = 8 + quit_button_size
+	quit_button.offset_bottom = 8 + quit_button_size
+	quit_button.pressed.connect(on_quit_pressed)
+	layer.add_child(quit_button)
+
+	var left_section := ColorRect.new()
+	left_section.color = Color(0.18, 0.18, 0.18, 1.0)
+	left_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	left_section.size_flags_stretch_ratio = 0.6
+	root_row.add_child(left_section)
+
+	right_section = ColorRect.new()
+	right_section.color = Color.BLACK
+	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right_section.size_flags_stretch_ratio = 3.4
+	right_section.resized.connect(on_right_section_resized)
+	root_row.add_child(right_section)
+
+	var left_margin := MarginContainer.new()
+	left_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	left_margin.add_theme_constant_override("margin_left", 16)
+	left_margin.add_theme_constant_override("margin_right", 16)
+	left_margin.add_theme_constant_override("margin_top", 52)
+	left_margin.add_theme_constant_override("margin_bottom", 16)
+	left_section.add_child(left_margin)
+
+	var left_vbox := VBoxContainer.new()
+	left_vbox.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	left_vbox.add_theme_constant_override("separation", 8)
+	left_margin.add_child(left_vbox)
+
+	local_ip_label = Label.new()
+	_bump_font_size(local_ip_label, font_size_increase)
+	left_vbox.add_child(local_ip_label)
+
+	external_ip_label = Label.new()
+	_bump_font_size(external_ip_label, font_size_increase)
+	left_vbox.add_child(external_ip_label)
+
+	var port_label := Label.new()
+	port_label.text = "Port: %d" % default_port
+	_bump_font_size(port_label, font_size_increase)
+	left_vbox.add_child(port_label)
+
+	var button_row := HBoxContainer.new()
+	left_vbox.add_child(button_row)
+
+	host_button = Button.new()
+	host_button.text = "Host"
+	_bump_font_size(host_button, font_size_increase)
+	_apply_button_padding(host_button, 14.0, 8.0)
+	host_button.pressed.connect(on_host_pressed)
+	button_row.add_child(host_button)
+
+	join_button = Button.new()
+	join_button.text = "Join"
+	_bump_font_size(join_button, font_size_increase)
+	_apply_button_padding(join_button, 14.0, 8.0)
+	join_button.pressed.connect(on_join_pressed)
+	button_row.add_child(join_button)
+
+	disconnect_button = Button.new()
+	disconnect_button.text = "Disconnect"
+	_bump_font_size(disconnect_button, font_size_increase)
+	_apply_button_padding(disconnect_button, 14.0, 8.0)
+	disconnect_button.visible = false
+	disconnect_button.pressed.connect(on_disconnect_pressed)
+	button_row.add_child(disconnect_button)
+
+	status_label = Label.new()
+	_bump_font_size(status_label, font_size_increase)
+	left_vbox.add_child(status_label)
+
+	var instructions := Label.new()
+	instructions.text = "Host can press W/A/S/D keys to display directional arrow."
+	instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_bump_font_size(instructions, font_size_increase)
+	left_vbox.add_child(instructions)
+
+	peer_list_label = RichTextLabel.new()
+	peer_list_label.bbcode_enabled = true
+	peer_list_label.fit_content = true
+	peer_list_label.scroll_active = false
+	peer_list_label.selection_enabled = false
+	peer_list_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	peer_list_label.add_theme_font_size_override(
+		"normal_font_size",
+		peer_list_label.get_theme_font_size("normal_font_size") + font_size_increase
+	)
+	left_vbox.add_child(peer_list_label)
+
+	_build_join_popup(owner, on_connect_pressed, font_size_increase)
+
+func _build_join_popup(owner: Node, on_connect_pressed: Callable, font_size_increase: int) -> void:
+	join_popup = Window.new()
+	join_popup.title = "Connect to Host"
+	join_popup.size = Vector2i(340, 120)
+	join_popup.unresizable = true
+	join_popup.visible = false
+	owner.add_child(join_popup)
+
+	var popup_vbox := VBoxContainer.new()
+	popup_vbox.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	popup_vbox.add_theme_constant_override("separation", 8)
+	join_popup.add_child(popup_vbox)
+
+	join_ip_input = LineEdit.new()
+	join_ip_input.placeholder_text = "Host IP"
+	join_ip_input.text = "127.0.0.1"
+	_bump_font_size(join_ip_input, font_size_increase)
+	popup_vbox.add_child(join_ip_input)
+
+	var connect_button := Button.new()
+	connect_button.text = "Connect"
+	_bump_font_size(connect_button, font_size_increase)
+	connect_button.pressed.connect(on_connect_pressed)
+	popup_vbox.add_child(connect_button)
+
+func _bump_font_size(control: Control, increase: int) -> void:
+	var current_size: int = control.get_theme_font_size("font_size")
+	control.add_theme_font_size_override("font_size", current_size + increase)
+
+func _apply_button_padding(button: Button, horizontal: float, vertical: float) -> void:
+	var states: PackedStringArray = ["normal", "hover", "pressed", "disabled", "focus"]
+	for state in states:
+		var stylebox: StyleBox = button.get_theme_stylebox(state)
+		if stylebox == null:
+			continue
+		var style_copy: StyleBox = stylebox.duplicate() as StyleBox
+		style_copy.set_content_margin(SIDE_LEFT, horizontal)
+		style_copy.set_content_margin(SIDE_RIGHT, horizontal)
+		style_copy.set_content_margin(SIDE_TOP, vertical)
+		style_copy.set_content_margin(SIDE_BOTTOM, vertical)
+		button.add_theme_stylebox_override(state, style_copy)
