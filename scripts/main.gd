@@ -11,6 +11,7 @@ const PROJECTILE_MAX_TRAVEL := WORLD_BOUNDS.size.x * 0.25
 const PROJECTILE_RADIUS := 3.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
 const PROJECTILE_RENDER_SIDES := 12
+const FIRE_INTERVAL_SECONDS := 0.16
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
@@ -56,6 +57,7 @@ var input_by_peer: Dictionary = {}
 var local_player_name: String = ""
 var local_preferred_color_index := -1
 var projectiles: Array[Dictionary] = []
+var local_fire_cooldown := 0.0
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -287,6 +289,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	_refresh_peer_list()
 	_clear_ship_roles()
 	projectiles.clear()
+	local_fire_cooldown = 0.0
 	_hide_all_ships()
 
 func _set_status(value: String) -> void:
@@ -472,6 +475,10 @@ func _process(delta: float) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
 
+	if local_fire_cooldown > 0.0:
+		local_fire_cooldown = maxf(0.0, local_fire_cooldown - delta)
+	_handle_local_continuous_fire()
+
 	if multiplayer.is_server():
 		_update_server_ships(delta)
 		_update_projectiles(delta)
@@ -524,6 +531,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key_event.physical_keycode != KEY_SPACE:
 		return
 
+func _handle_local_continuous_fire() -> void:
+	if local_fire_cooldown > 0.0:
+		return
+	if _is_typing_name():
+		return
+	if not Input.is_physical_key_pressed(KEY_SPACE):
+		return
+
+	var local_id: int = multiplayer.get_unique_id()
+	var local_slot_index: int = _get_slot_index_for_peer(local_id)
+	if local_slot_index == -1:
+		return
+
+	local_fire_cooldown = FIRE_INTERVAL_SECONDS
 	if multiplayer.is_server():
 		_spawn_projectile_from_slot(local_slot_index)
 		_sync_projectiles_to_clients()
