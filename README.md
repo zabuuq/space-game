@@ -17,16 +17,25 @@ Simple Godot 4 multiplayer demo using GDScript.
 - The left panel shows local/external IP, port, controls, connection status, instructions, and the host/client IP roster.
   - Roster format is `[internal_ip]/[external_ip]`.
   - Host is listed first in bold; clients follow in connection order.
-- Everyone sees the same ship icon in the right play area.
-- The ship is triangular (Asteroids-style) and starts centered in the right section.
-- Host controls:
-  - `A` rotates counter-clockwise.
-  - `D` rotates clockwise.
-  - `W` increases speed while held.
-  - `S` decreases speed by 1 px/s.
-- Ship speed is clamped from `0` to `100` px/s.
-- The ship stays in the right section field of play.
-- The host's ship position/rotation/speed is synchronized to all connected clients.
+- Up to six players can control ships at once.
+  - Additional connected peers are observers and show `Connection Status: Observer`.
+  - If a controlling client disconnects, the next observer in queue takes over that ship, and the ship resets to its starting position.
+- Ship starting slots use a `3 x 2` grid in this order:
+  - Player 1 (host): upper left
+  - Player 2: upper right
+  - Player 3: lower right
+  - Player 4: lower left
+  - Player 5: upper middle
+  - Player 6: lower middle
+- A connected controller can fly their own ship with:
+  - `W` increase speed
+  - `S` decrease speed
+  - `A` turn counter-clockwise
+  - `D` turn clockwise
+  - `X` full stop
+- Ships only appear for connected controllers (host starts with ship after hosting).
+- Ships wrap around the field of play in the right section.
+- Ship position/rotation/speed is synchronized from host/server to all clients.
 
 ## Run
 
@@ -34,6 +43,7 @@ Simple Godot 4 multiplayer demo using GDScript.
 2. Run the main scene.
 3. On one machine, click **Host** (port `56419`).
 4. On other machines, click **Join**, enter the host IP, then click **Connect**.
-5. Use **A/D** to rotate and **W/S** to adjust ship speed on the host.
-6. Click **Disconnect** to leave the session and return local status to `Not connected`.
-7. Click **Quit** to close the game.
+5. Control your assigned ship with **W/A/S/D** and **X**.
+6. Connect more than six peers to see observer mode and automatic observer promotion when a controller disconnects.
+7. Click **Disconnect** to leave the session.
+8. Click **Quit** to close the game.
