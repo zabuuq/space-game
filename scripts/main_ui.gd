@@ -56,7 +56,7 @@ func build(
 	right_section = ColorRect.new()
 	right_section.color = Color.BLACK
 	right_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_section.size_flags_stretch_ratio = 3.0
+	right_section.size_flags_stretch_ratio = 4.0
 	right_section.resized.connect(on_right_section_resized)
 	root_row.add_child(right_section)
 
