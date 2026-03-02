@@ -14,15 +14,14 @@ Simple Godot 4 multiplayer demo using GDScript.
 - The window is split vertically:
   - Left quarter: dark gray control panel
   - Right three-quarters: black play area
-- The left panel shows local/external IP, port, controls, connection status, instructions, and the host/client IP roster.
-  - Roster format is `[internal_ip]/[external_ip]`.
-  - Host is listed first in bold; clients follow in connection order.
+- The left panel shows local/external IP, port, name entry, controls, connection status, instructions, and the host/client roster.
+  - If a player has entered a name, the roster shows that name; otherwise it shows `[internal_ip]/[external_ip]`.
+  - Roster order remains host first, then clients in connection order.
 - Up to six players can control ships at once.
   - Additional connected peers are observers and show `Connection Status: Observer`.
   - If a controlling client disconnects, the next observer in queue takes over that ship, and the ship resets to its starting position.
 - Each controlled ship has a unique color.
 - Player roster entries are color-matched to controlled ship color.
-  - Roster order remains host first, then clients by connection order.
   - Each user sees only their own roster line in bold on their local instance.
 - Ship starting slots use a `3 x 2` grid in this order:
   - Player 1 (host): upper left

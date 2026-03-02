@@ -45,6 +45,7 @@ var ship_slots: Array[ShipNavigation] = []
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
+var local_player_name := ""
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -143,6 +144,7 @@ func _ready() -> void:
 		Callable(self, "_on_join_pressed"),
 		Callable(self, "_on_disconnect_pressed"),
 		Callable(self, "_on_connect_pressed"),
+		Callable(self, "_on_player_name_changed"),
 		Callable(self, "queue_redraw")
 	)
 
@@ -247,7 +249,12 @@ func _set_status(value: String) -> void:
 
 func _initialize_host_roster() -> void:
 	var host_id: int = multiplayer.get_unique_id()
-	peer_roster.register_host(host_id, ip_info.local_internal_ip, ip_info.local_external_ip)
+	peer_roster.register_host(
+		host_id,
+		ip_info.local_internal_ip,
+		ip_info.local_external_ip,
+		local_player_name
+	)
 	_broadcast_peer_roster()
 
 func _broadcast_peer_roster() -> void:
@@ -257,19 +264,29 @@ func _broadcast_peer_roster() -> void:
 	sync_peer_roster.rpc(
 		peer_roster.get_sync_peer_ids(),
 		peer_roster.get_sync_internal_ips(),
-		peer_roster.get_sync_external_ips()
+		peer_roster.get_sync_external_ips(),
+		peer_roster.get_sync_names()
 	)
 
 @rpc("authority", "call_local", "reliable")
-func sync_peer_roster(peer_ids: Array[int], internal_ips: Array[String], external_ips: Array[String]) -> void:
-	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips)
+func sync_peer_roster(
+	peer_ids: Array[int],
+	internal_ips: Array[String],
+	external_ips: Array[String],
+	names: Array[String]
+) -> void:
+	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names)
 	_refresh_peer_list()
 
 func _refresh_peer_list() -> void:
 	var peer_ids: Array[int] = peer_roster.get_sync_peer_ids()
 	var internal_ips: Array[String] = peer_roster.get_sync_internal_ips()
 	var external_ips: Array[String] = peer_roster.get_sync_external_ips()
-	var total: int = mini(peer_ids.size(), mini(internal_ips.size(), external_ips.size()))
+	var names: Array[String] = peer_roster.get_sync_names()
+	var total: int = mini(
+		peer_ids.size(),
+		mini(internal_ips.size(), mini(external_ips.size(), names.size()))
+	)
 	if total <= 0:
 		ui.peer_list_label.text = ""
 		return
@@ -279,7 +296,10 @@ func _refresh_peer_list() -> void:
 	var index: int = 0
 	while index < total:
 		var peer_id: int = peer_ids[index]
-		var line := "%s/%s" % [internal_ips[index], external_ips[index]]
+		var display_value: String = names[index].strip_edges()
+		if display_value.is_empty():
+			display_value = "%s/%s" % [internal_ips[index], external_ips[index]]
+		var line := display_value
 		var slot_index: int = _get_slot_index_for_peer(peer_id)
 		var color_code: String = DEFAULT_PEER_TEXT_COLOR
 		if slot_index >= 0 and slot_index < SHIP_COLORS.size():
@@ -300,19 +320,29 @@ func _submit_local_identity() -> void:
 
 	if multiplayer.is_server():
 		var host_id: int = multiplayer.get_unique_id()
-		peer_roster.upsert_peer(host_id, ip_info.local_internal_ip, ip_info.local_external_ip)
+		peer_roster.upsert_peer(
+			host_id,
+			ip_info.local_internal_ip,
+			ip_info.local_external_ip,
+			local_player_name
+		)
 		peer_roster.ensure_peer_in_order(host_id)
 		_broadcast_peer_roster()
 	else:
-		submit_peer_info.rpc_id(1, ip_info.local_internal_ip, ip_info.local_external_ip)
+		submit_peer_info.rpc_id(
+			1,
+			ip_info.local_internal_ip,
+			ip_info.local_external_ip,
+			local_player_name
+		)
 
 @rpc("any_peer", "reliable")
-func submit_peer_info(internal_ip: String, external_ip: String) -> void:
+func submit_peer_info(internal_ip: String, external_ip: String, player_name: String) -> void:
 	if not multiplayer.is_server():
 		return
 
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	peer_roster.upsert_peer(sender_id, internal_ip, external_ip)
+	peer_roster.upsert_peer(sender_id, internal_ip, external_ip, player_name)
 	_broadcast_peer_roster()
 
 func _update_local_ip_labels() -> void:
@@ -322,6 +352,11 @@ func _update_local_ip_labels() -> void:
 func _on_ip_info_updated() -> void:
 	_update_local_ip_labels()
 	_submit_local_identity()
+
+func _on_player_name_changed(value: String) -> void:
+	local_player_name = value.strip_edges()
+	_submit_local_identity()
+	_refresh_peer_list()
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()

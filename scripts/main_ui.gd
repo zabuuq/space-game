@@ -4,6 +4,7 @@ class_name MainUi
 var status_label: Label
 var local_ip_label: Label
 var external_ip_label: Label
+var player_name_input: LineEdit
 var peer_list_label: RichTextLabel
 var host_button: Button
 var join_button: Button
@@ -23,6 +24,7 @@ func build(
 	on_join_pressed: Callable,
 	on_disconnect_pressed: Callable,
 	on_connect_pressed: Callable,
+	on_name_changed: Callable,
 	on_right_section_resized: Callable
 ) -> void:
 	var layer := CanvasLayer.new()
@@ -149,6 +151,17 @@ func build(
 	port_value.text = str(default_port)
 	_bump_font_size(port_value, font_size_increase)
 	address_grid.add_child(port_value)
+
+	var name_title := Label.new()
+	name_title.text = "Name:"
+	_bump_font_size(name_title, font_size_increase)
+	address_grid.add_child(name_title)
+
+	player_name_input = LineEdit.new()
+	player_name_input.placeholder_text = "Enter name"
+	_bump_font_size(player_name_input, font_size_increase)
+	player_name_input.text_changed.connect(on_name_changed)
+	address_grid.add_child(player_name_input)
 
 	var instructions_top_separator := HSeparator.new()
 	left_vbox.add_child(instructions_top_separator)
