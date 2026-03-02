@@ -378,6 +378,8 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
+	if _is_typing_name():
+		return
 	if not (event is InputEventKey):
 		return
 
@@ -515,10 +517,16 @@ func _update_server_ships(delta: float) -> void:
 		var decelerate := false
 
 		if owner_id == host_id:
-			turn_left = Input.is_physical_key_pressed(KEY_A)
-			turn_right = Input.is_physical_key_pressed(KEY_D)
-			accelerate = Input.is_physical_key_pressed(KEY_W)
-			decelerate = Input.is_physical_key_pressed(KEY_S)
+			if _is_typing_name():
+				turn_left = false
+				turn_right = false
+				accelerate = false
+				decelerate = false
+			else:
+				turn_left = Input.is_physical_key_pressed(KEY_A)
+				turn_right = Input.is_physical_key_pressed(KEY_D)
+				accelerate = Input.is_physical_key_pressed(KEY_W)
+				decelerate = Input.is_physical_key_pressed(KEY_S)
 		else:
 			var peer_input: Dictionary = input_by_peer.get(owner_id, {})
 			turn_left = bool(peer_input.get("left", false))
@@ -541,12 +549,22 @@ func _send_client_input_to_server() -> void:
 	if _get_slot_index_for_peer(local_id) == -1:
 		return
 
+	var turn_left := false
+	var turn_right := false
+	var accelerate := false
+	var decelerate := false
+	if not _is_typing_name():
+		turn_left = Input.is_physical_key_pressed(KEY_A)
+		turn_right = Input.is_physical_key_pressed(KEY_D)
+		accelerate = Input.is_physical_key_pressed(KEY_W)
+		decelerate = Input.is_physical_key_pressed(KEY_S)
+
 	submit_ship_input.rpc_id(
 		1,
-		Input.is_physical_key_pressed(KEY_A),
-		Input.is_physical_key_pressed(KEY_D),
-		Input.is_physical_key_pressed(KEY_W),
-		Input.is_physical_key_pressed(KEY_S)
+		turn_left,
+		turn_right,
+		accelerate,
+		decelerate
 	)
 
 func _sync_ships_to_clients() -> void:
@@ -588,3 +606,8 @@ func _update_local_connection_status_from_roles() -> void:
 		return
 
 	_set_status(STATUS_CONNECTED_TO_HOST)
+
+func _is_typing_name() -> bool:
+	if ui.player_name_input == null:
+		return false
+	return ui.player_name_input.has_focus()

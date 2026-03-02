@@ -159,6 +159,7 @@ func build(
 
 	player_name_input = LineEdit.new()
 	player_name_input.placeholder_text = "Enter name"
+	player_name_input.max_length = 24
 	player_name_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(player_name_input, font_size_increase)
 	player_name_input.text_changed.connect(on_name_changed)
