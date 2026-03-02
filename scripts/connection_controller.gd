@@ -24,11 +24,11 @@ func host(port: int) -> bool:
 	var peer := ENetMultiplayerPeer.new()
 	var result := peer.create_server(port)
 	if result != OK:
-		set_status.call("Failed to host (error %d)" % result)
+		set_status.call("Not connected")
 		return false
 
 	multiplayer.multiplayer_peer = peer
-	set_status.call("Hosting on port %d" % port)
+	set_status.call("Hosting")
 	set_connected_controls(true)
 	return true
 
@@ -36,11 +36,10 @@ func join(ip: String, port: int) -> bool:
 	var peer := ENetMultiplayerPeer.new()
 	var result := peer.create_client(ip, port)
 	if result != OK:
-		set_status.call("Failed to connect (error %d)" % result)
+		set_status.call("Not connected")
 		return false
 
 	multiplayer.multiplayer_peer = peer
-	set_status.call("Connecting to %s:%d" % [ip, port])
 	set_connected_controls(true)
 	return true
 

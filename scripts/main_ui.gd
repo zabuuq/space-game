@@ -70,24 +70,25 @@ func build(
 	left_vbox.add_theme_constant_override("separation", 8)
 	left_margin.add_child(left_vbox)
 
-	local_ip_label = Label.new()
-	_bump_font_size(local_ip_label, font_size_increase)
-	left_vbox.add_child(local_ip_label)
+	var button_margin := MarginContainer.new()
+	button_margin.add_theme_constant_override("margin_left", 6)
+	button_margin.add_theme_constant_override("margin_right", 6)
+	button_margin.add_theme_constant_override("margin_top", 6)
+	button_margin.add_theme_constant_override("margin_bottom", 6)
+	left_vbox.add_child(button_margin)
 
-	external_ip_label = Label.new()
-	_bump_font_size(external_ip_label, font_size_increase)
-	left_vbox.add_child(external_ip_label)
-
-	var port_label := Label.new()
-	port_label.text = "Port: %d" % default_port
-	_bump_font_size(port_label, font_size_increase)
-	left_vbox.add_child(port_label)
+	var button_vbox := VBoxContainer.new()
+	button_vbox.add_theme_constant_override("separation", 8)
+	button_margin.add_child(button_vbox)
 
 	var button_row := HBoxContainer.new()
-	left_vbox.add_child(button_row)
+	button_row.add_theme_constant_override("separation", 8)
+	button_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button_vbox.add_child(button_row)
 
 	host_button = Button.new()
 	host_button.text = "Host"
+	host_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(host_button, font_size_increase)
 	_apply_button_padding(host_button, 14.0, 8.0)
 	host_button.pressed.connect(on_host_pressed)
@@ -95,6 +96,7 @@ func build(
 
 	join_button = Button.new()
 	join_button.text = "Join"
+	join_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(join_button, font_size_increase)
 	_apply_button_padding(join_button, 14.0, 8.0)
 	join_button.pressed.connect(on_join_pressed)
@@ -102,21 +104,98 @@ func build(
 
 	disconnect_button = Button.new()
 	disconnect_button.text = "Disconnect"
+	disconnect_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_bump_font_size(disconnect_button, font_size_increase)
 	_apply_button_padding(disconnect_button, 14.0, 8.0)
 	disconnect_button.visible = false
 	disconnect_button.pressed.connect(on_disconnect_pressed)
-	button_row.add_child(disconnect_button)
+	button_vbox.add_child(disconnect_button)
 
 	status_label = Label.new()
 	_bump_font_size(status_label, font_size_increase)
 	left_vbox.add_child(status_label)
+
+	var address_grid := GridContainer.new()
+	address_grid.columns = 2
+	address_grid.add_theme_constant_override("h_separation", 8)
+	address_grid.add_theme_constant_override("v_separation", 6)
+	left_vbox.add_child(address_grid)
+
+	var local_ip_title := Label.new()
+	local_ip_title.text = "Local IP:"
+	_bump_font_size(local_ip_title, font_size_increase)
+	address_grid.add_child(local_ip_title)
+
+	local_ip_label = Label.new()
+	_bump_font_size(local_ip_label, font_size_increase)
+	address_grid.add_child(local_ip_label)
+
+	var external_ip_title := Label.new()
+	external_ip_title.text = "External IP:"
+	_bump_font_size(external_ip_title, font_size_increase)
+	address_grid.add_child(external_ip_title)
+
+	external_ip_label = Label.new()
+	_bump_font_size(external_ip_label, font_size_increase)
+	address_grid.add_child(external_ip_label)
+
+	var port_title := Label.new()
+	port_title.text = "Port:"
+	_bump_font_size(port_title, font_size_increase)
+	address_grid.add_child(port_title)
+
+	var port_value := Label.new()
+	port_value.text = str(default_port)
+	_bump_font_size(port_value, font_size_increase)
+	address_grid.add_child(port_value)
+
+	var instructions_top_separator := HSeparator.new()
+	left_vbox.add_child(instructions_top_separator)
+
+	var instructions_heading_spacer := Control.new()
+	instructions_heading_spacer.custom_minimum_size = Vector2(0, 10)
+	left_vbox.add_child(instructions_heading_spacer)
+
+	var instructions_heading := RichTextLabel.new()
+	instructions_heading.bbcode_enabled = true
+	instructions_heading.fit_content = true
+	instructions_heading.scroll_active = false
+	instructions_heading.selection_enabled = false
+	instructions_heading.text = "[b]Instructions[/b]"
+	instructions_heading.add_theme_font_size_override(
+		"normal_font_size",
+		instructions_heading.get_theme_font_size("normal_font_size") + font_size_increase
+	)
+	left_vbox.add_child(instructions_heading)
 
 	var instructions := Label.new()
 	instructions.text = "Host can press W/A/S/D keys to display directional arrow."
 	instructions.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_bump_font_size(instructions, font_size_increase)
 	left_vbox.add_child(instructions)
+
+	var instructions_bottom_separator_spacer := Control.new()
+	instructions_bottom_separator_spacer.custom_minimum_size = Vector2(0, 10)
+	left_vbox.add_child(instructions_bottom_separator_spacer)
+
+	var instructions_bottom_separator := HSeparator.new()
+	left_vbox.add_child(instructions_bottom_separator)
+
+	var players_heading_spacer := Control.new()
+	players_heading_spacer.custom_minimum_size = Vector2(0, 10)
+	left_vbox.add_child(players_heading_spacer)
+
+	var players_heading := RichTextLabel.new()
+	players_heading.bbcode_enabled = true
+	players_heading.fit_content = true
+	players_heading.scroll_active = false
+	players_heading.selection_enabled = false
+	players_heading.text = "[b]Players[/b]"
+	players_heading.add_theme_font_size_override(
+		"normal_font_size",
+		players_heading.get_theme_font_size("normal_font_size") + font_size_increase
+	)
+	left_vbox.add_child(players_heading)
 
 	peer_list_label = RichTextLabel.new()
 	peer_list_label.bbcode_enabled = true

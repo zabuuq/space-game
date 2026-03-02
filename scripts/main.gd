@@ -5,6 +5,9 @@ const FONT_SIZE_INCREASE := 3
 const QUIT_BUTTON_SIZE := 32.0
 const SHIP_OUTLINE_WIDTH := 3.0
 const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2.ONE)
+const STATUS_NOT_CONNECTED := "Not connected"
+const STATUS_HOSTING := "Hosting"
+const STATUS_CONNECTED_TO_HOST := "Connected to host"
 
 const SHIP_NAVIGATION_SCRIPT := preload("res://scripts/ship_navigation.gd")
 const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
@@ -72,7 +75,7 @@ func _ready() -> void:
 	get_viewport().size_changed.connect(queue_redraw)
 
 	set_process(true)
-	_set_status("Not connected")
+	_set_status(STATUS_NOT_CONNECTED)
 	_update_local_ip_labels()
 	ip_info.request_external_ip()
 	_refresh_peer_list()
@@ -82,6 +85,7 @@ func _on_host_pressed() -> void:
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
+	_set_status(STATUS_HOSTING)
 	_initialize_host_roster()
 	_reset_ship()
 	_sync_ship_state_to_clients()
@@ -93,21 +97,21 @@ func _on_connect_pressed() -> void:
 	ui.join_popup.hide()
 	var ip := ui.join_ip_input.text.strip_edges()
 	if ip.is_empty():
-		_set_status("Invalid IP")
+		_set_status(STATUS_NOT_CONNECTED)
 		return
 
 	connection_controller.join(ip, DEFAULT_PORT)
 
 func _on_connected_to_server() -> void:
-	_set_status("Connected as client")
+	_set_status(STATUS_CONNECTED_TO_HOST)
 	_submit_local_identity()
 
 func _on_connection_failed() -> void:
-	_set_status("Connection failed")
+	_set_status(STATUS_NOT_CONNECTED)
 	_disconnect_local_peer(false)
 
 func _on_server_disconnected() -> void:
-	_set_status("Server disconnected")
+	_set_status(STATUS_NOT_CONNECTED)
 	_disconnect_local_peer(false)
 
 func _on_peer_connected(peer_id: int) -> void:
@@ -167,8 +171,8 @@ func _submit_local_identity() -> void:
 		submit_peer_info.rpc_id(1, ip_info.local_internal_ip, ip_info.local_external_ip)
 
 func _update_local_ip_labels() -> void:
-	ui.local_ip_label.text = "Local IP: %s" % ip_info.local_internal_ip
-	ui.external_ip_label.text = "External IP: %s" % ip_info.local_external_ip
+	ui.local_ip_label.text = ip_info.local_internal_ip
+	ui.external_ip_label.text = ip_info.local_external_ip
 
 func _on_ip_info_updated() -> void:
 	_update_local_ip_labels()
