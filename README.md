@@ -36,9 +36,13 @@ Simple Godot 4 multiplayer demo using GDScript.
   - `A` turn counter-clockwise
   - `D` turn clockwise
   - `X` full stop
+  - `Space` fire a projectile dot
 - Ships only appear for connected controllers (host starts with ship after hosting).
 - Ships wrap around the field of play in the right section.
 - Ship position/rotation/speed is synchronized from host/server to all clients.
+- Projectiles are synchronized from host/server to all clients.
+  - Projectiles travel a quarter of world-space before disappearing.
+  - Projectile speed is higher than the maximum ship speed.
 
 ## Run
 

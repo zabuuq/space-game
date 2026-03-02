@@ -6,6 +6,10 @@ const QUIT_BUTTON_SIZE := 32.0
 const SHIP_OUTLINE_WIDTH := 3.0
 const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 const MAX_SHIPS := 6
+const PROJECTILE_SPEED := 260.0
+const PROJECTILE_MAX_TRAVEL := WORLD_BOUNDS.size.x * 0.25
+const PROJECTILE_RADIUS := 3.0
+const PROJECTILE_SPAWN_OFFSET := 20.0
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
@@ -46,6 +50,7 @@ var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
 var local_player_name: String = ""
+var projectiles: Array[Dictionary] = []
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -127,6 +132,36 @@ func request_full_stop() -> void:
 	var ship: ShipNavigation = ship_slots[slot_index]
 	ship.full_stop()
 	_sync_ships_to_clients()
+	queue_redraw()
+
+@rpc("any_peer", "reliable")
+func request_fire_projectile() -> void:
+	if not multiplayer.is_server():
+		return
+
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	var slot_index: int = _get_slot_index_for_peer(sender_id)
+	if slot_index == -1:
+		return
+
+	_spawn_projectile_from_slot(slot_index)
+	_sync_projectiles_to_clients()
+	queue_redraw()
+
+@rpc("authority", "call_remote", "unreliable")
+func sync_projectiles(positions: Array[Vector2], slot_indices: Array[int]) -> void:
+	if multiplayer.is_server():
+		return
+
+	projectiles.clear()
+	var total: int = mini(positions.size(), slot_indices.size())
+	var index: int = 0
+	while index < total:
+		projectiles.append({
+			"position": positions[index],
+			"slot_index": slot_indices[index]
+		})
+		index += 1
 	queue_redraw()
 
 func _ready() -> void:
@@ -244,6 +279,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	peer_roster.clear()
 	_refresh_peer_list()
 	_clear_ship_roles()
+	projectiles.clear()
 	_hide_all_ships()
 
 func _set_status(value: String) -> void:
@@ -376,7 +412,9 @@ func _process(delta: float) -> void:
 
 	if multiplayer.is_server():
 		_update_server_ships(delta)
+		_update_projectiles(delta)
 		_sync_ships_to_clients()
+		_sync_projectiles_to_clients()
 		queue_redraw()
 		return
 
@@ -397,10 +435,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key_event := event as InputEventKey
 	if key_event == null:
 		return
-	if key_event.physical_keycode != KEY_X or not key_event.pressed or key_event.echo:
+	if not key_event.pressed or key_event.echo:
 		return
 
-	if multiplayer.is_server():
+	if key_event.physical_keycode == KEY_X and multiplayer.is_server():
 		var host_id: int = multiplayer.get_unique_id()
 		var host_slot: int = _get_slot_index_for_peer(host_id)
 		if host_slot == -1:
@@ -411,9 +449,26 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var local_id: int = multiplayer.get_unique_id()
-	if _get_slot_index_for_peer(local_id) == -1:
+	var local_slot_index: int = _get_slot_index_for_peer(local_id)
+	if local_slot_index == -1:
 		return
-	request_full_stop.rpc_id(1)
+
+	if key_event.physical_keycode == KEY_X:
+		if multiplayer.is_server():
+			return
+		request_full_stop.rpc_id(1)
+		return
+
+	if key_event.physical_keycode != KEY_SPACE:
+		return
+
+	if multiplayer.is_server():
+		_spawn_projectile_from_slot(local_slot_index)
+		_sync_projectiles_to_clients()
+		queue_redraw()
+		return
+
+	request_fire_projectile.rpc_id(1)
 
 func _draw() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -433,6 +488,14 @@ func _draw() -> void:
 
 		draw_polyline(ship_points, SHIP_COLORS[index], SHIP_OUTLINE_WIDTH, true)
 		index += 1
+
+	for projectile in projectiles:
+		var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
+		var slot_index: int = int(projectile.get("slot_index", -1))
+		var color: Color = Color.WHITE
+		if slot_index >= 0 and slot_index < SHIP_COLORS.size():
+			color = SHIP_COLORS[slot_index]
+		draw_circle(_world_to_screen_position(world_position, play_rect), PROJECTILE_RADIUS, color)
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
@@ -655,3 +718,82 @@ func _to_world_position(normalized_position: Vector2) -> Vector2:
 		normalized_position.x * WORLD_BOUNDS.size.x,
 		normalized_position.y * WORLD_BOUNDS.size.y
 	)
+
+func _world_to_screen_position(world_position: Vector2, play_rect: Rect2) -> Vector2:
+	var normalized_position := Vector2.ZERO
+	if WORLD_BOUNDS.size.x > 0.0:
+		normalized_position.x = (world_position.x - WORLD_BOUNDS.position.x) / WORLD_BOUNDS.size.x
+	if WORLD_BOUNDS.size.y > 0.0:
+		normalized_position.y = (world_position.y - WORLD_BOUNDS.position.y) / WORLD_BOUNDS.size.y
+	return play_rect.position + (normalized_position * play_rect.size)
+
+func _spawn_projectile_from_slot(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= ship_slots.size():
+		return
+	var ship: ShipNavigation = ship_slots[slot_index]
+	if not ship.initialized:
+		return
+
+	var forward := Vector2(0, 1).rotated(ship.rotation_radians)
+	projectiles.append({
+		"position": _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET)),
+		"velocity": forward * PROJECTILE_SPEED,
+		"distance": 0.0,
+		"slot_index": slot_index
+	})
+
+func _update_projectiles(delta: float) -> void:
+	if projectiles.is_empty():
+		return
+
+	var next_projectiles: Array[Dictionary] = []
+	for projectile in projectiles:
+		var velocity: Vector2 = projectile.get("velocity", Vector2.ZERO)
+		var position: Vector2 = projectile.get("position", Vector2.ZERO)
+		var distance: float = float(projectile.get("distance", 0.0))
+		var slot_index: int = int(projectile.get("slot_index", -1))
+
+		position = _wrap_world_position(position + (velocity * delta))
+		distance += velocity.length() * delta
+		if distance >= PROJECTILE_MAX_TRAVEL:
+			continue
+
+		next_projectiles.append({
+			"position": position,
+			"velocity": velocity,
+			"distance": distance,
+			"slot_index": slot_index
+		})
+
+	projectiles = next_projectiles
+
+func _wrap_world_position(current: Vector2) -> Vector2:
+	var min_x: float = WORLD_BOUNDS.position.x
+	var min_y: float = WORLD_BOUNDS.position.y
+	var max_x: float = WORLD_BOUNDS.position.x + WORLD_BOUNDS.size.x
+	var max_y: float = WORLD_BOUNDS.position.y + WORLD_BOUNDS.size.y
+
+	var wrapped: Vector2 = current
+	if wrapped.x < min_x:
+		wrapped.x = max_x
+	elif wrapped.x > max_x:
+		wrapped.x = min_x
+
+	if wrapped.y < min_y:
+		wrapped.y = max_y
+	elif wrapped.y > max_y:
+		wrapped.y = min_y
+
+	return wrapped
+
+func _sync_projectiles_to_clients() -> void:
+	if not multiplayer.is_server():
+		return
+
+	var positions: Array[Vector2] = []
+	var slot_indices: Array[int] = []
+	for projectile in projectiles:
+		positions.append(projectile.get("position", Vector2.ZERO))
+		slot_indices.append(int(projectile.get("slot_index", -1)))
+
+	sync_projectiles.rpc(positions, slot_indices)
