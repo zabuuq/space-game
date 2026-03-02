@@ -98,6 +98,14 @@ func get_peer_color_index(peer_id: int) -> int:
 	var info: Dictionary = _get_peer_info(peer_id)
 	return int(info["color_index"])
 
+func get_peer_identity_key(peer_id: int) -> String:
+	var info: Dictionary = _get_peer_info(peer_id)
+	var internal_ip: String = str(info["internal"])
+	var external_ip: String = str(info["external"])
+	if internal_ip == "Unknown" or external_ip == "Unknown":
+		return ""
+	return "%s|%s" % [internal_ip, external_ip]
+
 func is_color_taken(color_index: int, ignore_peer_id: int = -1) -> bool:
 	if color_index < 0:
 		return false

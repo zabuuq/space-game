@@ -255,9 +255,10 @@ func build(
 
 	peer_list_label = RichTextLabel.new()
 	peer_list_label.bbcode_enabled = true
-	peer_list_label.fit_content = true
+	peer_list_label.fit_content = false
 	peer_list_label.scroll_active = false
 	peer_list_label.selection_enabled = false
+	peer_list_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	peer_list_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	peer_list_label.add_theme_font_size_override(
 		"normal_font_size",

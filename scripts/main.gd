@@ -12,6 +12,7 @@ const PROJECTILE_RADIUS := 3.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
 const PROJECTILE_RENDER_SIDES := 12
 const FIRE_INTERVAL_SECONDS := 0.16
+const SHIP_HIT_RADIUS := 18.0
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
@@ -58,6 +59,9 @@ var local_player_name: String = ""
 var local_preferred_color_index := -1
 var projectiles: Array[Dictionary] = []
 var local_fire_cooldown := 0.0
+var score_by_identity: Dictionary = {}
+var peer_identity_by_id: Dictionary = {}
+var peer_score_by_id: Dictionary = {}
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -225,6 +229,7 @@ func _on_host_pressed() -> void:
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
+	_reset_session_scores()
 	_initialize_host_roster()
 	_start_host_ship_session()
 	_refresh_peer_list()
@@ -269,6 +274,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		return
 
 	peer_roster.remove_peer(peer_id)
+	peer_identity_by_id.erase(peer_id)
+	peer_score_by_id.erase(peer_id)
 	observer_queue.erase(peer_id)
 	input_by_peer.erase(peer_id)
 
@@ -286,6 +293,7 @@ func _on_disconnect_pressed() -> void:
 func _disconnect_local_peer(update_status: bool) -> void:
 	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
+	peer_score_by_id.clear()
 	_refresh_peer_list()
 	_clear_ship_roles()
 	projectiles.clear()
@@ -334,18 +342,21 @@ func _initialize_host_roster() -> void:
 		local_player_name,
 		resolved_color_index
 	)
+	_bind_peer_score(host_id)
 	_broadcast_peer_roster()
 
 func _broadcast_peer_roster() -> void:
 	if not multiplayer.is_server():
 		return
 
+	var peer_ids: Array[int] = peer_roster.get_sync_peer_ids()
 	sync_peer_roster.rpc(
-		peer_roster.get_sync_peer_ids(),
+		peer_ids,
 		peer_roster.get_sync_internal_ips(),
 		peer_roster.get_sync_external_ips(),
 		peer_roster.get_sync_names(),
-		peer_roster.get_sync_color_indices()
+		peer_roster.get_sync_color_indices(),
+		_get_sync_scores(peer_ids)
 	)
 
 @rpc("authority", "call_local", "reliable")
@@ -354,9 +365,14 @@ func sync_peer_roster(
 	internal_ips: Array[String],
 	external_ips: Array[String],
 	names: Array[String],
-	color_indices: Array[int]
+	color_indices: Array[int],
+	scores: Array[int]
 ) -> void:
 	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names, color_indices)
+	peer_score_by_id.clear()
+	var score_total: int = mini(peer_ids.size(), scores.size())
+	for index in range(score_total):
+		peer_score_by_id[peer_ids[index]] = int(scores[index])
 	_sync_local_color_from_roster()
 	_refresh_peer_list()
 
@@ -375,7 +391,7 @@ func _refresh_peer_list() -> void:
 
 	var local_id: int = multiplayer.get_unique_id()
 	var list_font_size: int = ui.peer_list_label.get_theme_font_size("normal_font_size")
-	var lines: PackedStringArray = []
+	var table_rows: PackedStringArray = []
 	var index: int = 0
 	while index < total:
 		var peer_id: int = peer_ids[index]
@@ -387,16 +403,22 @@ func _refresh_peer_list() -> void:
 		var color_index: int = peer_roster.get_peer_color_index(peer_id)
 		if color_index >= 0 and color_index < PLAYER_COLORS.size():
 			color_code = PLAYER_COLORS[color_index].to_html(false)
+		var score_value: int = int(peer_score_by_id.get(peer_id, 0))
 
 		line = "[color=#%s]%s[/color]" % [color_code, line]
 		line = "[font_size=%d]%s[/font_size]" % [list_font_size, line]
+		var score_text := "[font_size=%d]%d[/font_size]" % [list_font_size, score_value]
 		if peer_id == local_id:
 			line = "[b]%s[/b]" % line
+			score_text = "[b]%s[/b]" % score_text
 
-		lines.append(line)
+		table_rows.append(
+			"[cell expand=4]%s[/cell][cell expand=1 align=right]%s[/cell]" %
+			[line, score_text]
+		)
 		index += 1
 
-	ui.peer_list_label.text = "\n".join(lines)
+	ui.peer_list_label.text = "[table=2]%s[/table]" % "".join(table_rows)
 
 func _submit_local_identity() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -413,6 +435,7 @@ func _submit_local_identity() -> void:
 			local_player_name,
 			resolved_color_index
 		)
+		_bind_peer_score(host_id)
 		peer_roster.ensure_peer_in_order(host_id)
 		_broadcast_peer_roster()
 	else:
@@ -443,6 +466,7 @@ func submit_peer_info(
 		player_name,
 		resolved_color_index
 	)
+	_bind_peer_score(sender_id)
 	_broadcast_peer_roster()
 
 func _update_local_ip_labels() -> void:
@@ -975,13 +999,17 @@ func _spawn_projectile_from_slot(slot_index: int) -> void:
 	var ship: ShipNavigation = ship_slots[slot_index]
 	if not ship.initialized:
 		return
+	var shooter_peer_id: int = ship_owner_by_slot[slot_index]
+	if shooter_peer_id == -1:
+		return
 
 	var forward := Vector2(0, 1).rotated(ship.rotation_radians)
 	projectiles.append({
 		"position": _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET)),
 		"velocity": forward * PROJECTILE_SPEED,
 		"distance": 0.0,
-		"slot_index": slot_index
+		"slot_index": slot_index,
+		"shooter_peer_id": shooter_peer_id
 	})
 
 func _update_projectiles(delta: float) -> void:
@@ -989,25 +1017,87 @@ func _update_projectiles(delta: float) -> void:
 		return
 
 	var next_projectiles: Array[Dictionary] = []
+	var score_changed := false
 	for projectile in projectiles:
 		var velocity: Vector2 = projectile.get("velocity", Vector2.ZERO)
 		var position: Vector2 = projectile.get("position", Vector2.ZERO)
 		var distance: float = float(projectile.get("distance", 0.0))
 		var slot_index: int = int(projectile.get("slot_index", -1))
+		var shooter_peer_id: int = int(projectile.get("shooter_peer_id", -1))
 
 		position = _wrap_world_position(position + (velocity * delta))
 		distance += velocity.length() * delta
 		if distance >= PROJECTILE_MAX_TRAVEL:
+			continue
+		var hit_slot: int = _get_hit_ship_slot(position, shooter_peer_id)
+		if hit_slot != -1:
+			_reset_ship_slot(hit_slot)
+			score_changed = _award_point(shooter_peer_id) or score_changed
 			continue
 
 		next_projectiles.append({
 			"position": position,
 			"velocity": velocity,
 			"distance": distance,
-			"slot_index": slot_index
+			"slot_index": slot_index,
+			"shooter_peer_id": shooter_peer_id
 		})
 
 	projectiles = next_projectiles
+	if score_changed:
+		_broadcast_peer_roster()
+
+func _get_hit_ship_slot(projectile_position: Vector2, shooter_peer_id: int) -> int:
+	var slot_index: int = 0
+	while slot_index < MAX_SHIPS:
+		var owner_id: int = ship_owner_by_slot[slot_index]
+		if owner_id == -1 or owner_id == shooter_peer_id:
+			slot_index += 1
+			continue
+		var ship: ShipNavigation = ship_slots[slot_index]
+		if ship.initialized and ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
+			return slot_index
+		slot_index += 1
+	return -1
+
+func _reset_ship_slot(slot_index: int) -> void:
+	if slot_index < 0 or slot_index >= ship_slots.size():
+		return
+	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
+
+func _reset_session_scores() -> void:
+	score_by_identity.clear()
+	peer_identity_by_id.clear()
+	peer_score_by_id.clear()
+
+func _bind_peer_score(peer_id: int) -> void:
+	var identity_key: String = peer_roster.get_peer_identity_key(peer_id)
+	if identity_key.is_empty():
+		return
+	peer_identity_by_id[peer_id] = identity_key
+	if not score_by_identity.has(identity_key):
+		score_by_identity[identity_key] = 0
+	peer_score_by_id[peer_id] = int(score_by_identity[identity_key])
+
+func _award_point(peer_id: int) -> bool:
+	if peer_id == -1:
+		return false
+	var identity_key: String = str(peer_identity_by_id.get(peer_id, ""))
+	if identity_key.is_empty():
+		_bind_peer_score(peer_id)
+		identity_key = str(peer_identity_by_id.get(peer_id, ""))
+	if identity_key.is_empty():
+		return false
+	var next_score: int = int(score_by_identity.get(identity_key, 0)) + 1
+	score_by_identity[identity_key] = next_score
+	peer_score_by_id[peer_id] = next_score
+	return true
+
+func _get_sync_scores(peer_ids: Array[int]) -> Array[int]:
+	var scores: Array[int] = []
+	for peer_id in peer_ids:
+		scores.append(int(peer_score_by_id.get(peer_id, 0)))
+	return scores
 
 func _wrap_world_position(current: Vector2) -> Vector2:
 	var min_x: float = WORLD_BOUNDS.position.x

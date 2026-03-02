@@ -43,6 +43,12 @@ Simple Godot 4 multiplayer demo using GDScript.
 - Projectiles are synchronized from host/server to all clients.
   - Projectiles travel a quarter of world-space before disappearing.
   - Projectile speed is higher than the maximum ship speed.
+- Projectile hits reset the hit ship to its starting position.
+- Scoring:
+  - A player gains 1 point when their projectile hits another ship.
+  - Scores are shown to the right of each player name in the roster.
+  - Scores are remembered if a player disconnects and reconnects in the same hosted session.
+  - Scores reset to zero when the host starts hosting a new session.
 
 ## Run
 
