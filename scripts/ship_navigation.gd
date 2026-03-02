@@ -35,6 +35,7 @@ func update_host(
 	turn_left: bool,
 	turn_right: bool,
 	accelerate: bool,
+	decelerate: bool,
 	bounds: Rect2 = WORLD_BOUNDS
 ) -> void:
 	if not initialized:
@@ -49,6 +50,8 @@ func update_host(
 
 	if accelerate:
 		speed = clampf(speed + (SPEED_STEP * delta), 0.0, MAX_SPEED)
+	if decelerate:
+		speed = clampf(speed - (SPEED_STEP * delta), 0.0, MAX_SPEED)
 
 	if speed <= 0.0:
 		return
@@ -56,9 +59,6 @@ func update_host(
 	var forward := Vector2(0, 1).rotated(rotation_radians)
 	position += forward * speed * delta
 	position = _wrap_to_bounds(position, bounds)
-
-func decrease_speed_once() -> void:
-	speed = clampf(speed - SPEED_STEP, 0.0, MAX_SPEED)
 
 func get_screen_points(play_rect: Rect2) -> PackedVector2Array:
 	if play_rect.size.x <= 0.0 or play_rect.size.y <= 0.0:

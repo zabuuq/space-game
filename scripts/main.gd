@@ -71,7 +71,6 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	get_viewport().size_changed.connect(queue_redraw)
 
-	set_process_unhandled_input(true)
 	set_process(true)
 	_set_status("Not connected")
 	_update_local_ip_labels()
@@ -203,25 +202,12 @@ func _process(delta: float) -> void:
 		Input.is_physical_key_pressed(KEY_A),
 		Input.is_physical_key_pressed(KEY_D),
 		Input.is_physical_key_pressed(KEY_W),
+		Input.is_physical_key_pressed(KEY_S),
 		WORLD_BOUNDS
 	)
 
 	_sync_ship_state_to_clients()
 	queue_redraw()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if multiplayer.multiplayer_peer == null:
-		return
-	if not multiplayer.is_server():
-		return
-	if event is InputEventKey and not event.echo:
-		match event.physical_keycode:
-			KEY_S:
-				ship_navigation.decrease_speed_once()
-			_:
-				return
-		_sync_ship_state_to_clients()
-		queue_redraw()
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
