@@ -14,6 +14,7 @@ const PROJECTILE_RENDER_SIDES := 12
 const FIRE_INTERVAL_SECONDS := 0.16
 const SHIP_HIT_RADIUS := 18.0
 const DAMAGE_IMMUNITY_SECONDS := 2.0
+const IMMUNE_ACCELERATION_MULTIPLIER := 4.0
 const IMMUNITY_RING_WIDTH := 2.0
 const IMMUNITY_RING_RENDER_SIDES := 48
 const IMMUNITY_RING_EXTRA_PIXELS := 4.0
@@ -935,6 +936,7 @@ func _update_server_ships(delta: float) -> void:
 		var turn_right := false
 		var accelerate := false
 		var decelerate := false
+		var acceleration_multiplier := 1.0
 
 		if owner_id == host_id:
 			if _is_typing_name():
@@ -954,12 +956,16 @@ func _update_server_ships(delta: float) -> void:
 			accelerate = bool(peer_input.get("accelerate", false))
 			decelerate = bool(peer_input.get("decelerate", false))
 
+		if _is_peer_damage_immune(owner_id):
+			acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER
+
 		ship_slots[index].update_host(
 			delta,
 			turn_left,
 			turn_right,
 			accelerate,
 			decelerate,
+			acceleration_multiplier,
 			WORLD_BOUNDS
 		)
 		index += 1

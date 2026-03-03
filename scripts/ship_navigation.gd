@@ -43,6 +43,7 @@ func update_host(
 	turn_right: bool,
 	accelerate: bool,
 	decelerate: bool,
+	acceleration_multiplier: float = 1.0,
 	bounds: Rect2 = WORLD_BOUNDS
 ) -> void:
 	if not initialized:
@@ -56,7 +57,8 @@ func update_host(
 	rotation_radians += rotate_input * ROTATION_SPEED * delta
 
 	if accelerate:
-		speed = clampf(speed + (SPEED_STEP * delta), 0.0, MAX_SPEED)
+		var resolved_multiplier: float = maxf(0.0, acceleration_multiplier)
+		speed = clampf(speed + (SPEED_STEP * resolved_multiplier * delta), 0.0, MAX_SPEED)
 	if decelerate:
 		speed = clampf(speed - (SPEED_STEP * delta), 0.0, MAX_SPEED)
 
