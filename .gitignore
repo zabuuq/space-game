@@ -1,5 +1,5 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
-codex_error_summary.txt
-codex_tasks.md
+_ai_tasks.md
+_errors_for_ai.log
