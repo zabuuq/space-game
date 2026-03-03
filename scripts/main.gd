@@ -20,9 +20,14 @@ const IMMUNITY_RING_RENDER_SIDES := 48
 const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
 const STATUS_NOT_CONNECTED := "Not connected"
+const STATUS_CONNECTING := "Connecting"
+const STATUS_FAILED_TO_CONNECT := "Failed to Connect"
 const STATUS_HOSTING := "Hosting"
 const STATUS_CONNECTED_TO_HOST := "Connected to host"
 const STATUS_OBSERVER := "Observer"
+const MAX_CONNECT_ATTEMPTS := 3
+const CONNECTING_DOT_STEP_SECONDS := 0.25
+const CONNECT_RETRY_DELAY_SECONDS := 0.35
 const DEFAULT_PEER_TEXT_COLOR := "ffffff"
 const PLAYER_COLORS: Array[Color] = [
 	Color(0.93, 0.93, 0.93), # white
@@ -68,6 +73,13 @@ var score_by_identity: Dictionary = {}
 var peer_identity_by_id: Dictionary = {}
 var peer_score_by_id: Dictionary = {}
 var damage_immunity_until_by_peer: Dictionary = {}
+var is_connecting := false
+var connect_target_ip: String = ""
+var connect_attempt_count := 0
+var connect_retry_pending := false
+var connect_retry_timer := 0.0
+var connecting_dot_count := 0
+var connecting_dot_timer := 0.0
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -265,17 +277,27 @@ func _on_connect_pressed() -> void:
 		_set_status(STATUS_NOT_CONNECTED)
 		return
 
-	connection_controller.join(ip, DEFAULT_PORT)
+	_start_connect_sequence(ip)
 
 func _on_connected_to_server() -> void:
+	_stop_connect_sequence()
+	connection_controller.set_connected_controls(true)
 	_set_status(STATUS_CONNECTED_TO_HOST)
 	_submit_local_identity()
 
 func _on_connection_failed() -> void:
-	_set_status(STATUS_NOT_CONNECTED)
+	if is_connecting:
+		_handle_connect_attempt_failure()
+		return
+
+	_set_status(STATUS_FAILED_TO_CONNECT)
 	_disconnect_local_peer(false)
 
 func _on_server_disconnected() -> void:
+	if is_connecting:
+		_handle_connect_attempt_failure()
+		return
+
 	_set_status(STATUS_NOT_CONNECTED)
 	_disconnect_local_peer(false)
 
@@ -311,6 +333,7 @@ func _on_disconnect_pressed() -> void:
 	_disconnect_local_peer(true)
 
 func _disconnect_local_peer(update_status: bool) -> void:
+	_stop_connect_sequence()
 	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
 	peer_score_by_id.clear()
@@ -536,6 +559,7 @@ func _on_quit_pressed() -> void:
 	get_tree().quit()
 
 func _process(delta: float) -> void:
+	_update_connect_sequence(delta)
 	if multiplayer.multiplayer_peer == null:
 		return
 
@@ -552,6 +576,80 @@ func _process(delta: float) -> void:
 		return
 
 	_send_client_input_to_server()
+
+func _start_connect_sequence(ip: String) -> void:
+	_stop_connect_sequence()
+	connect_target_ip = ip
+	is_connecting = true
+	connect_attempt_count = 0
+	connect_retry_pending = false
+	connect_retry_timer = 0.0
+	connecting_dot_count = 0
+	connecting_dot_timer = CONNECTING_DOT_STEP_SECONDS
+	connection_controller.set_connected_controls(true)
+	_set_status(STATUS_CONNECTING)
+	_attempt_connect_to_host()
+
+func _stop_connect_sequence() -> void:
+	is_connecting = false
+	connect_target_ip = ""
+	connect_attempt_count = 0
+	connect_retry_pending = false
+	connect_retry_timer = 0.0
+	connecting_dot_count = 0
+	connecting_dot_timer = 0.0
+
+func _attempt_connect_to_host() -> void:
+	if not is_connecting:
+		return
+	if connect_target_ip.is_empty():
+		_fail_connect_sequence()
+		return
+
+	connect_attempt_count += 1
+	var connect_started: bool = connection_controller.join(connect_target_ip, DEFAULT_PORT)
+	if connect_started:
+		return
+
+	_handle_connect_attempt_failure()
+
+func _handle_connect_attempt_failure() -> void:
+	if not is_connecting:
+		return
+
+	connection_controller.disconnect_session(false)
+	if connect_attempt_count >= MAX_CONNECT_ATTEMPTS:
+		_fail_connect_sequence()
+		return
+
+	connection_controller.set_connected_controls(true)
+	connect_retry_pending = true
+	connect_retry_timer = CONNECT_RETRY_DELAY_SECONDS
+
+func _fail_connect_sequence() -> void:
+	_stop_connect_sequence()
+	connection_controller.set_connected_controls(false)
+	_set_status(STATUS_FAILED_TO_CONNECT)
+
+func _update_connect_sequence(delta: float) -> void:
+	if not is_connecting:
+		return
+
+	connecting_dot_timer -= delta
+	if connecting_dot_timer <= 0.0:
+		connecting_dot_count = (connecting_dot_count % 5) + 1
+		_set_status("%s%s" % [STATUS_CONNECTING, ".".repeat(connecting_dot_count)])
+		connecting_dot_timer = CONNECTING_DOT_STEP_SECONDS
+
+	if not connect_retry_pending:
+		return
+
+	connect_retry_timer -= delta
+	if connect_retry_timer > 0.0:
+		return
+
+	connect_retry_pending = false
+	_attempt_connect_to_host()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if multiplayer.multiplayer_peer == null:

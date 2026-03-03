@@ -7,7 +7,9 @@ Simple Godot 4 multiplayer demo using GDScript.
 - The window starts in full screen.
 - One computer can host on port `56419`.
 - Other computers can join by clicking **Join**, entering the host IP in a pop-up, and clicking **Connect**.
-- After hosting or joining, **Host** and **Join** are replaced with **Disconnect**.
+- While a client is attempting to join, the connection status shows `Connecting` with animated trailing periods.
+- The client retries connection up to 3 times before showing `Failed to Connect`.
+- **Host** and **Join** are replaced with **Disconnect** as soon as hosting starts or a client begins a join attempt.
 - Clicking **Disconnect** disconnects only that local user.
   - If the host disconnects, all connected clients are disconnected.
 - A **Quit** button closes the game window.

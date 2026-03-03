@@ -39,11 +39,9 @@ func join(ip: String, port: int) -> bool:
 	var peer := ENetMultiplayerPeer.new()
 	var result := peer.create_client(ip, port)
 	if result != OK:
-		set_status.call("Not connected")
 		return false
 
 	multiplayer.multiplayer_peer = peer
-	set_connected_controls(true)
 	return true
 
 func disconnect_session(update_status: bool) -> void:

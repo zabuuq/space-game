@@ -272,6 +272,7 @@ func _build_join_popup(owner: Node, on_connect_pressed: Callable, font_size_incr
 	join_popup.size = Vector2i(340, 120)
 	join_popup.unresizable = true
 	join_popup.visible = false
+	join_popup.close_requested.connect(join_popup.hide)
 	owner.add_child(join_popup)
 
 	var popup_vbox := VBoxContainer.new()
