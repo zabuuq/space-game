@@ -13,6 +13,10 @@ const PROJECTILE_SPAWN_OFFSET := 20.0
 const PROJECTILE_RENDER_SIDES := 12
 const FIRE_INTERVAL_SECONDS := 0.16
 const SHIP_HIT_RADIUS := 18.0
+const DAMAGE_IMMUNITY_SECONDS := 2.0
+const IMMUNITY_RING_WIDTH := 2.0
+const IMMUNITY_RING_RENDER_SIDES := 48
+const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_HOSTING := "Hosting"
@@ -62,6 +66,7 @@ var local_fire_cooldown := 0.0
 var score_by_identity: Dictionary = {}
 var peer_identity_by_id: Dictionary = {}
 var peer_score_by_id: Dictionary = {}
+var damage_immunity_until_by_peer: Dictionary = {}
 
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
@@ -70,6 +75,7 @@ func sync_ship_roster(
 	rotations: Array[float],
 	speeds: Array[float],
 	actives: Array[bool],
+	immunity_remaining_seconds: Array[float],
 	observer_ids: Array[int]
 ) -> void:
 	if multiplayer.is_server():
@@ -102,6 +108,18 @@ func sync_ship_roster(
 		else:
 			ship.hide()
 
+		index += 1
+
+	damage_immunity_until_by_peer.clear()
+	var now_seconds: float = _get_server_time_seconds()
+	var immunity_total: int = immunity_remaining_seconds.size()
+	index = 0
+	while index < MAX_SHIPS:
+		var owner_id: int = ship_owner_by_slot[index]
+		if owner_id != -1 and index < immunity_total:
+			var remaining_seconds: float = maxf(0.0, float(immunity_remaining_seconds[index]))
+			if remaining_seconds > 0.0:
+				damage_immunity_until_by_peer[owner_id] = now_seconds + remaining_seconds
 		index += 1
 
 	observer_queue = observer_ids.duplicate()
@@ -278,6 +296,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	peer_score_by_id.erase(peer_id)
 	observer_queue.erase(peer_id)
 	input_by_peer.erase(peer_id)
+	damage_immunity_until_by_peer.erase(peer_id)
 
 	var slot_index: int = _get_slot_index_for_peer(peer_id)
 	if slot_index != -1:
@@ -612,6 +631,9 @@ func _draw() -> void:
 			var ship_color: Color = _get_ship_color_for_slot(index)
 			for ship_points in point_sets:
 				_draw_clipped_polyline(ship_points, ship_color, SHIP_OUTLINE_WIDTH, play_rect)
+			var owner_id: int = ship_owner_by_slot[index]
+			if owner_id != -1 and _is_peer_damage_immune(owner_id):
+				_draw_wrapped_immunity_indicator(ship.position, play_rect, ship_color)
 
 			index += 1
 
@@ -629,6 +651,23 @@ func _draw_wrapped_projectile(world_position: Vector2, play_rect: Rect2, color: 
 		var clipped_poly := _clip_polygon_to_rect(projectile_poly, play_rect)
 		if clipped_poly.size() >= 3:
 			draw_colored_polygon(clipped_poly, color)
+
+func _draw_wrapped_immunity_indicator(world_position: Vector2, play_rect: Rect2, color: Color) -> void:
+	var radius: float = _get_immunity_ring_radius(play_rect)
+	var base_center := _world_to_screen_position(world_position, play_rect)
+	var wrapped_centers := _get_wrapped_centers(base_center, play_rect, radius)
+	var ring_color := color
+	ring_color.a = 0.95
+	for center in wrapped_centers:
+		draw_arc(center, radius, 0.0, TAU, IMMUNITY_RING_RENDER_SIDES, ring_color, IMMUNITY_RING_WIDTH, true)
+
+func _get_immunity_ring_radius(play_rect: Rect2) -> float:
+	if WORLD_BOUNDS.size.x <= 0.0 or WORLD_BOUNDS.size.y <= 0.0:
+		return SHIP_HIT_RADIUS + IMMUNITY_RING_EXTRA_PIXELS
+	var x_scale: float = play_rect.size.x / WORLD_BOUNDS.size.x
+	var y_scale: float = play_rect.size.y / WORLD_BOUNDS.size.y
+	var world_to_screen: float = minf(x_scale, y_scale)
+	return (SHIP_HIT_RADIUS * world_to_screen) + IMMUNITY_RING_EXTRA_PIXELS
 
 func _get_wrapped_centers(base_center: Vector2, play_rect: Rect2, radius: float) -> Array[Vector2]:
 	var centers: Array[Vector2] = []
@@ -823,6 +862,7 @@ func _hide_all_ships() -> void:
 func _clear_ship_roles() -> void:
 	observer_queue.clear()
 	input_by_peer.clear()
+	damage_immunity_until_by_peer.clear()
 
 	var index: int = 0
 	while index < MAX_SHIPS:
@@ -847,9 +887,13 @@ func _assign_peer_role(peer_id: int) -> void:
 func _assign_peer_to_slot(peer_id: int, slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = peer_id
 	input_by_peer.erase(peer_id)
+	_set_damage_immunity_for_peer(peer_id)
 	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 
 func _release_slot(slot_index: int) -> void:
+	var peer_id: int = ship_owner_by_slot[slot_index]
+	if peer_id != -1:
+		damage_immunity_until_by_peer.erase(peer_id)
 	ship_owner_by_slot[slot_index] = -1
 	ship_slots[slot_index].hide()
 
@@ -952,18 +996,29 @@ func _sync_ships_to_clients() -> void:
 	var rotations: Array[float] = []
 	var speeds: Array[float] = []
 	var actives: Array[bool] = []
+	var immunity_remaining_seconds: Array[float] = []
 
 	var index: int = 0
 	while index < MAX_SHIPS:
 		var ship: ShipNavigation = ship_slots[index]
-		owner_ids.append(ship_owner_by_slot[index])
+		var owner_id: int = ship_owner_by_slot[index]
+		owner_ids.append(owner_id)
 		positions.append(ship.position)
 		rotations.append(ship.rotation_radians)
 		speeds.append(ship.speed)
-		actives.append(ship.initialized and ship_owner_by_slot[index] != -1)
+		actives.append(ship.initialized and owner_id != -1)
+		immunity_remaining_seconds.append(_get_peer_immunity_remaining_seconds(owner_id))
 		index += 1
 
-	sync_ship_roster.rpc(owner_ids, positions, rotations, speeds, actives, observer_queue.duplicate())
+	sync_ship_roster.rpc(
+		owner_ids,
+		positions,
+		rotations,
+		speeds,
+		actives,
+		immunity_remaining_seconds,
+		observer_queue.duplicate()
+	)
 
 func _update_local_connection_status_from_roles() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -1074,6 +1129,9 @@ func _get_hit_ship_slot(projectile_position: Vector2, shooter_peer_id: int) -> i
 		if owner_id == -1 or owner_id == shooter_peer_id:
 			slot_index += 1
 			continue
+		if _is_peer_damage_immune(owner_id):
+			slot_index += 1
+			continue
 		var ship: ShipNavigation = ship_slots[slot_index]
 		if ship.initialized and ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
 			return slot_index
@@ -1083,7 +1141,34 @@ func _get_hit_ship_slot(projectile_position: Vector2, shooter_peer_id: int) -> i
 func _reset_ship_slot(slot_index: int) -> void:
 	if slot_index < 0 or slot_index >= ship_slots.size():
 		return
+	var owner_id: int = ship_owner_by_slot[slot_index]
+	if owner_id != -1:
+		_set_damage_immunity_for_peer(owner_id)
 	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
+
+func _set_damage_immunity_for_peer(peer_id: int) -> void:
+	if peer_id == -1:
+		return
+	damage_immunity_until_by_peer[peer_id] = _get_server_time_seconds() + DAMAGE_IMMUNITY_SECONDS
+
+func _is_peer_damage_immune(peer_id: int) -> bool:
+	if peer_id == -1:
+		return false
+	var immunity_until: float = float(damage_immunity_until_by_peer.get(peer_id, 0.0))
+	if immunity_until <= 0.0:
+		return false
+	return _get_server_time_seconds() < immunity_until
+
+func _get_peer_immunity_remaining_seconds(peer_id: int) -> float:
+	if peer_id == -1:
+		return 0.0
+	var immunity_until: float = float(damage_immunity_until_by_peer.get(peer_id, 0.0))
+	if immunity_until <= 0.0:
+		return 0.0
+	return maxf(0.0, immunity_until - _get_server_time_seconds())
+
+func _get_server_time_seconds() -> float:
+	return Time.get_ticks_msec() / 1000.0
 
 func _reset_session_scores() -> void:
 	score_by_identity.clear()
