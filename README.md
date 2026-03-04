@@ -16,13 +16,14 @@ Simple Godot 4 multiplayer demo using GDScript.
 - The window is split vertically:
   - Left quarter: dark gray control panel
   - Right three-quarters: black play area
-- The left panel shows local/external IP, port, name entry, controls, connection status, instructions, and the host/client roster.
+- The left panel shows local/external IP, port, name/color entry, controls, connection status, instructions, and the host/client roster.
   - If a player has entered a name, the roster shows that name; otherwise it shows `[internal_ip]/[external_ip]`.
+  - Players can select a preferred ship color from a dropdown menu.
   - Roster order remains host first, then clients in connection order.
 - Up to six players can control ships at once.
   - Additional connected peers are observers and show `Connection Status: Observer`.
   - If a controlling client disconnects, the next observer in queue takes over that ship, and the ship resets to its starting position.
-- Each controlled ship has a unique color.
+- Each controlled ship has a unique color (assigned from preferred color if available and not taken).
 - Player roster entries are color-matched to controlled ship color.
   - Each user sees only their own roster line in bold on their local instance.
 - Ship starting slots use a `3 x 2` grid in this order:
@@ -46,6 +47,8 @@ Simple Godot 4 multiplayer demo using GDScript.
   - Projectiles travel a quarter of world-space before disappearing.
   - Projectile speed is higher than the maximum ship speed.
 - Projectile hits reset the hit ship to its starting position.
+  - Ships gain a 2-second immunity shield when joining or after being hit.
+  - During immunity, an indicator ring is drawn around the ship, it ignores projectile hits, and it benefits from a 4x acceleration multiplier.
 - Scoring:
   - A player gains 1 point when their projectile hits another ship.
   - Scores are shown to the right of each player name in the roster.
