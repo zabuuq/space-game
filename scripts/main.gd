@@ -84,58 +84,19 @@ var connecting_dot_timer := 0.0
 @rpc("authority", "call_remote", "unreliable")
 func sync_ship_roster(
 	owner_ids: Array[int],
-	positions: Array[Vector2],
-	rotations: Array[float],
-	speeds: Array[float],
-	actives: Array[bool],
-	immunity_remaining_seconds: Array[float],
 	observer_ids: Array[int]
 ) -> void:
 	if multiplayer.is_server():
 		return
 
-	var total: int = mini(
-		owner_ids.size(),
-		mini(positions.size(), mini(rotations.size(), mini(speeds.size(), actives.size())))
-	)
+	var total: int = owner_ids.size()
 	var index: int = 0
 	while index < MAX_SHIPS:
 		var owner_id: int = -1
-		var position: Vector2 = Vector2.ZERO
-		var rotation_value := 0.0
-		var speed_value := 0.0
-		var is_active := false
-
 		if index < total:
 			owner_id = owner_ids[index]
-			position = positions[index]
-			rotation_value = rotations[index]
-			speed_value = speeds[index]
-			is_active = actives[index]
 
 		ship_owner_by_slot[index] = owner_id
-
-		var ship: Ship = ship_slots[index]
-		if is_active and owner_id != -1:
-			ship.show()
-			ship.apply_network_state(position, rotation_value, speed_value)
-			ship.modulate = _get_ship_color_for_slot(index)
-			ship.is_immune = _is_peer_damage_immune(owner_id)
-		else:
-			ship.hide()
-
-		index += 1
-
-	damage_immunity_until_by_peer.clear()
-	var now_seconds: float = _get_server_time_seconds()
-	var immunity_total: int = immunity_remaining_seconds.size()
-	index = 0
-	while index < MAX_SHIPS:
-		var owner_id: int = ship_owner_by_slot[index]
-		if owner_id != -1 and index < immunity_total:
-			var remaining_seconds: float = maxf(0.0, float(immunity_remaining_seconds[index]))
-			if remaining_seconds > 0.0:
-				damage_immunity_until_by_peer[owner_id] = now_seconds + remaining_seconds
 		index += 1
 
 	observer_queue = observer_ids.duplicate()
@@ -935,31 +896,13 @@ func _sync_ships_to_clients() -> void:
 		return
 
 	var owner_ids: Array[int] = []
-	var positions: Array[Vector2] = []
-	var rotations: Array[float] = []
-	var speeds: Array[float] = []
-	var actives: Array[bool] = []
-	var immunity_remaining_seconds: Array[float] = []
-
 	var index: int = 0
 	while index < MAX_SHIPS:
-		var ship: Ship = ship_slots[index]
-		var owner_id: int = ship_owner_by_slot[index]
-		owner_ids.append(owner_id)
-		positions.append(ship.position)
-		rotations.append(ship.rotation)
-		speeds.append(ship.current_speed)
-		actives.append(ship.visible and owner_id != -1)
-		immunity_remaining_seconds.append(_get_peer_immunity_remaining_seconds(owner_id))
+		owner_ids.append(ship_owner_by_slot[index])
 		index += 1
 
 	sync_ship_roster.rpc(
 		owner_ids,
-		positions,
-		rotations,
-		speeds,
-		actives,
-		immunity_remaining_seconds,
 		observer_queue.duplicate()
 	)
 
