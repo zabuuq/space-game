@@ -8,3 +8,7 @@ script = ExtResource("1_3wnca")
 [node name="ShipSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://entities/ship/ship.tscn")
 spawn_path = NodePath("../World")
+
+[node name="ProjectileSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://entities/projectile/projectile.tscn")
+spawn_path = NodePath("../World")

@@ -51,6 +51,7 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 ]
 
 const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
+const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
 const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
@@ -67,7 +68,6 @@ var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
 var local_player_name: String = ""
 var local_preferred_color_index := -1
-var projectiles: Array[Dictionary] = []
 var local_fire_cooldown := 0.0
 var score_by_identity: Dictionary = {}
 var peer_identity_by_id: Dictionary = {}
@@ -151,24 +151,8 @@ func request_fire_projectile() -> void:
 		return
 
 	_spawn_projectile_from_slot(slot_index)
-	_sync_projectiles_to_clients()
 	queue_redraw()
 
-@rpc("authority", "call_remote", "unreliable")
-func sync_projectiles(positions: Array[Vector2], slot_indices: Array[int]) -> void:
-	if multiplayer.is_server():
-		return
-
-	projectiles.clear()
-	var total: int = mini(positions.size(), slot_indices.size())
-	var index: int = 0
-	while index < total:
-		projectiles.append({
-			"position": positions[index],
-			"slot_index": slot_indices[index]
-		})
-		index += 1
-	queue_redraw()
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -303,7 +287,6 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	peer_score_by_id.clear()
 	_refresh_peer_list()
 	_clear_ship_roles()
-	projectiles.clear()
 	local_fire_cooldown = 0.0
 	_hide_all_ships()
 
@@ -545,8 +528,7 @@ func _process(delta: float) -> void:
 		_update_server_ships(delta)
 		_update_projectiles(delta)
 		_sync_ships_to_clients()
-		_sync_projectiles_to_clients()
-		queue_redraw()
+			queue_redraw()
 		return
 
 	_send_client_input_to_server()
@@ -683,8 +665,7 @@ func _handle_local_continuous_fire() -> void:
 	local_fire_cooldown = FIRE_INTERVAL_SECONDS
 	if multiplayer.is_server():
 		_spawn_projectile_from_slot(local_slot_index)
-		_sync_projectiles_to_clients()
-		queue_redraw()
+			queue_redraw()
 		return
 
 	request_fire_projectile.rpc_id(1)
@@ -692,22 +673,6 @@ func _handle_local_continuous_fire() -> void:
 func _draw() -> void:
 	var play_rect: Rect2 = _get_play_render_rect()
 	draw_rect(play_rect, Color.BLACK, true)
-
-	if multiplayer.multiplayer_peer != null:
-		for projectile in projectiles:
-			var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
-			var slot_index: int = int(projectile.get("slot_index", -1))
-			var color: Color = _get_ship_color_for_slot(slot_index)
-			_draw_wrapped_projectile(world_position, play_rect, color)
-
-func _draw_wrapped_projectile(world_position: Vector2, play_rect: Rect2, color: Color) -> void:
-	var base_center := _world_to_screen_position(world_position, play_rect)
-	var wrapped_centers := _get_wrapped_centers(base_center, play_rect, PROJECTILE_RADIUS)
-	for center in wrapped_centers:
-		var projectile_poly := _build_circle_polygon(center, PROJECTILE_RADIUS, PROJECTILE_RENDER_SIDES)
-		var clipped_poly := _clip_polygon_to_rect(projectile_poly, play_rect)
-		if clipped_poly.size() >= 3:
-			draw_colored_polygon(clipped_poly, color)
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
@@ -955,56 +920,36 @@ func _world_to_screen_position(world_position: Vector2, play_rect: Rect2) -> Vec
 	return play_rect.position + (normalized_position * play_rect.size)
 
 func _spawn_projectile_from_slot(slot_index: int) -> void:
-	if slot_index < 0 or slot_index >= ship_slots.size():
-		return
+	if slot_index < 0 or slot_index >= ship_slots.size(): return
 	var ship: Ship = ship_slots[slot_index]
-	if not ship.visible:
-		return
+	if not ship.visible: return
 	var shooter_peer_id: int = ship_owner_by_slot[slot_index]
-	if shooter_peer_id == -1:
-		return
+	if shooter_peer_id == -1: return
 
 	var forward := Vector2.UP.rotated(ship.rotation)
-	projectiles.append({
-		"position": _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET)),
-		"velocity": forward * PROJECTILE_SPEED,
-		"distance": 0.0,
-		"slot_index": slot_index,
-		"shooter_peer_id": shooter_peer_id
-	})
+	var proj = PROJECTILE_SCENE.instantiate()
+	proj.position = _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET))
+	proj.velocity = forward * PROJECTILE_SPEED
+	proj.shooter_peer_id = shooter_peer_id
+	proj.slot_index = slot_index
+	proj.modulate = _get_ship_color_for_slot(slot_index)
+	var world_node = get_node_or_null("World")
+	if world_node:
+		world_node.add_child(proj, true)
 
 func _update_projectiles(delta: float) -> void:
-	if projectiles.is_empty():
-		return
-
-	var next_projectiles: Array[Dictionary] = []
+	var world_node = get_node_or_null("World")
+	if world_node == null: return
 	var score_changed := false
-	for projectile in projectiles:
-		var velocity: Vector2 = projectile.get("velocity", Vector2.ZERO)
-		var position: Vector2 = projectile.get("position", Vector2.ZERO)
-		var distance: float = float(projectile.get("distance", 0.0))
-		var slot_index: int = int(projectile.get("slot_index", -1))
-		var shooter_peer_id: int = int(projectile.get("shooter_peer_id", -1))
+	
+	for child in world_node.get_children():
+		if child is Projectile:
+			var hit_slot = _get_hit_ship_slot(child.position, child.shooter_peer_id)
+			if hit_slot != -1:
+				_reset_ship_slot(hit_slot)
+				score_changed = _award_point(child.shooter_peer_id) or score_changed
+				child.queue_free()
 
-		position = _wrap_world_position(position + (velocity * delta))
-		distance += velocity.length() * delta
-		if distance >= PROJECTILE_MAX_TRAVEL:
-			continue
-		var hit_slot: int = _get_hit_ship_slot(position, shooter_peer_id)
-		if hit_slot != -1:
-			_reset_ship_slot(hit_slot)
-			score_changed = _award_point(shooter_peer_id) or score_changed
-			continue
-
-		next_projectiles.append({
-			"position": position,
-			"velocity": velocity,
-			"distance": distance,
-			"slot_index": slot_index,
-			"shooter_peer_id": shooter_peer_id
-		})
-
-	projectiles = next_projectiles
 	if score_changed:
 		_broadcast_peer_roster()
 
@@ -1109,14 +1054,4 @@ func _wrap_world_position(current: Vector2) -> Vector2:
 
 	return wrapped
 
-func _sync_projectiles_to_clients() -> void:
-	if not multiplayer.is_server():
-		return
 
-	var positions: Array[Vector2] = []
-	var slot_indices: Array[int] = []
-	for projectile in projectiles:
-		positions.append(projectile.get("position", Vector2.ZERO))
-		slot_indices.append(int(projectile.get("slot_index", -1)))
-
-	sync_projectiles.rpc(positions, slot_indices)
