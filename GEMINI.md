@@ -62,7 +62,7 @@
 - `main.tscn`: The root scene.
 - `project.godot`: Project configuration and input map.
 - `scripts/main.gd`: Game logic and networking hub.
-- `scripts/ship_navigation.gd`: Ship physics and movement.
+- `entities/ship/ship_navigation.gd`: Ship physics and movement.
 - `scripts/main_ui.gd`: UI construction logic.
 - `scripts/peer_roster_service.gd`: Player management.
 - `scripts/connection_controller.gd`: Network connection handling.

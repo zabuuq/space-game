@@ -50,7 +50,7 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 	Vector2(3.0 / 6.0, 3.0 / 4.0)
 ]
 
-const SHIP_NAVIGATION_SCRIPT := preload("res://scripts/ship_navigation.gd")
+const SHIP_NAVIGATION_SCRIPT := preload("res://entities/ship/ship_navigation.gd")
 const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
