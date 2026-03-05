@@ -50,7 +50,7 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 	Vector2(3.0 / 6.0, 3.0 / 4.0)
 ]
 
-const SHIP_NAVIGATION_SCRIPT := preload("res://entities/ship/ship_navigation.gd")
+const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
 const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
@@ -61,7 +61,7 @@ var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.n
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
 var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
 
-var ship_slots: Array[ShipNavigation] = []
+var ship_slots: Array[Ship] = []
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var input_by_peer: Dictionary = {}
@@ -115,9 +115,12 @@ func sync_ship_roster(
 
 		ship_owner_by_slot[index] = owner_id
 
-		var ship: ShipNavigation = ship_slots[index]
+		var ship: Ship = ship_slots[index]
 		if is_active and owner_id != -1:
+			ship.show()
 			ship.apply_network_state(position, rotation_value, speed_value)
+			ship.modulate = _get_ship_color_for_slot(index)
+			ship.is_immune = _is_peer_damage_immune(owner_id)
 		else:
 			ship.hide()
 
@@ -560,6 +563,16 @@ func _on_quit_pressed() -> void:
 
 func _process(delta: float) -> void:
 	_update_connect_sequence(delta)
+	
+	# Update World transform to fit the play area
+	var world_node := get_node_or_null("World")
+	if world_node != null:
+		var play_rect := _get_play_render_rect()
+		world_node.position = play_rect.position
+		var scale_x := play_rect.size.x / WORLD_BOUNDS.size.x
+		var scale_y := play_rect.size.y / WORLD_BOUNDS.size.y
+		world_node.scale = Vector2(scale_x, scale_y)
+
 	if multiplayer.multiplayer_peer == null:
 		return
 
@@ -720,22 +733,6 @@ func _draw() -> void:
 	draw_rect(play_rect, Color.BLACK, true)
 
 	if multiplayer.multiplayer_peer != null:
-		var index: int = 0
-		for ship in ship_slots:
-			if not ship.initialized:
-				index += 1
-				continue
-
-			var point_sets := ship.get_wrapped_screen_point_sets(play_rect, WORLD_BOUNDS)
-			var ship_color: Color = _get_ship_color_for_slot(index)
-			for ship_points in point_sets:
-				_draw_clipped_polyline(ship_points, ship_color, SHIP_OUTLINE_WIDTH, play_rect)
-			var owner_id: int = ship_owner_by_slot[index]
-			if owner_id != -1 and _is_peer_damage_immune(owner_id):
-				_draw_wrapped_immunity_indicator(ship.position, play_rect, ship_color)
-
-			index += 1
-
 		for projectile in projectiles:
 			var world_position: Vector2 = projectile.get("position", Vector2.ZERO)
 			var slot_index: int = int(projectile.get("slot_index", -1))
@@ -750,176 +747,6 @@ func _draw_wrapped_projectile(world_position: Vector2, play_rect: Rect2, color: 
 		var clipped_poly := _clip_polygon_to_rect(projectile_poly, play_rect)
 		if clipped_poly.size() >= 3:
 			draw_colored_polygon(clipped_poly, color)
-
-func _draw_wrapped_immunity_indicator(world_position: Vector2, play_rect: Rect2, color: Color) -> void:
-	var radius: float = _get_immunity_ring_radius(play_rect)
-	var base_center := _world_to_screen_position(world_position, play_rect)
-	var wrapped_centers := _get_wrapped_centers(base_center, play_rect, radius)
-	var ring_color := color
-	ring_color.a = 0.95
-	for center in wrapped_centers:
-		draw_arc(center, radius, 0.0, TAU, IMMUNITY_RING_RENDER_SIDES, ring_color, IMMUNITY_RING_WIDTH, true)
-
-func _get_immunity_ring_radius(play_rect: Rect2) -> float:
-	if WORLD_BOUNDS.size.x <= 0.0 or WORLD_BOUNDS.size.y <= 0.0:
-		return SHIP_HIT_RADIUS + IMMUNITY_RING_EXTRA_PIXELS
-	var x_scale: float = play_rect.size.x / WORLD_BOUNDS.size.x
-	var y_scale: float = play_rect.size.y / WORLD_BOUNDS.size.y
-	var world_to_screen: float = minf(x_scale, y_scale)
-	return (SHIP_HIT_RADIUS * world_to_screen) + IMMUNITY_RING_EXTRA_PIXELS
-
-func _get_wrapped_centers(base_center: Vector2, play_rect: Rect2, radius: float) -> Array[Vector2]:
-	var centers: Array[Vector2] = []
-	var x_offset: int = -1
-	while x_offset <= 1:
-		var y_offset: int = -1
-		while y_offset <= 1:
-			var center := base_center + Vector2(
-				float(x_offset) * play_rect.size.x,
-				float(y_offset) * play_rect.size.y
-			)
-			if _circle_may_be_visible(center, radius, play_rect):
-				centers.append(center)
-			y_offset += 1
-		x_offset += 1
-	return centers
-
-func _circle_may_be_visible(center: Vector2, radius: float, rect: Rect2) -> bool:
-	var min_x: float = rect.position.x - radius
-	var max_x: float = rect.position.x + rect.size.x + radius
-	var min_y: float = rect.position.y - radius
-	var max_y: float = rect.position.y + rect.size.y + radius
-	return center.x >= min_x and center.x <= max_x and center.y >= min_y and center.y <= max_y
-
-func _build_circle_polygon(center: Vector2, radius: float, sides: int) -> PackedVector2Array:
-	var polygon := PackedVector2Array()
-	if sides < 3:
-		return polygon
-
-	var step := TAU / float(sides)
-	var index: int = 0
-	while index < sides:
-		var angle := float(index) * step
-		polygon.append(center + Vector2(cos(angle), sin(angle)) * radius)
-		index += 1
-	return polygon
-
-func _draw_clipped_polyline(points: PackedVector2Array, color: Color, width: float, clip_rect: Rect2) -> void:
-	if points.size() < 2:
-		return
-
-	var index: int = 0
-	while index < points.size() - 1:
-		var clipped := _clip_segment_to_rect(points[index], points[index + 1], clip_rect)
-		if clipped.get("visible", false):
-			var from_point: Vector2 = clipped.get("from", Vector2.ZERO)
-			var to_point: Vector2 = clipped.get("to", Vector2.ZERO)
-			draw_line(from_point, to_point, color, width, true)
-		index += 1
-
-func _clip_segment_to_rect(from_point: Vector2, to_point: Vector2, rect: Rect2) -> Dictionary:
-	var x_min: float = rect.position.x
-	var x_max: float = rect.position.x + rect.size.x
-	var y_min: float = rect.position.y
-	var y_max: float = rect.position.y + rect.size.y
-	var dx: float = to_point.x - from_point.x
-	var dy: float = to_point.y - from_point.y
-	var t0 := 0.0
-	var t1 := 1.0
-	var p: Array[float] = [-dx, dx, -dy, dy]
-	var q: Array[float] = [
-		from_point.x - x_min,
-		x_max - from_point.x,
-		from_point.y - y_min,
-		y_max - from_point.y
-	]
-
-	var index: int = 0
-	while index < 4:
-		var p_value: float = p[index]
-		var q_value: float = q[index]
-		if is_zero_approx(p_value):
-			if q_value < 0.0:
-				return {"visible": false}
-			index += 1
-			continue
-
-		var ratio: float = q_value / p_value
-		if p_value < 0.0:
-			if ratio > t1:
-				return {"visible": false}
-			t0 = maxf(t0, ratio)
-		else:
-			if ratio < t0:
-				return {"visible": false}
-			t1 = minf(t1, ratio)
-		index += 1
-
-	var clipped_from := from_point + (Vector2(dx, dy) * t0)
-	var clipped_to := from_point + (Vector2(dx, dy) * t1)
-	return {
-		"visible": true,
-		"from": clipped_from,
-		"to": clipped_to
-	}
-
-func _clip_polygon_to_rect(polygon: PackedVector2Array, rect: Rect2) -> PackedVector2Array:
-	var clipped := polygon
-	clipped = _clip_polygon_against_vertical(clipped, rect.position.x, true)
-	clipped = _clip_polygon_against_vertical(clipped, rect.position.x + rect.size.x, false)
-	clipped = _clip_polygon_against_horizontal(clipped, rect.position.y, true)
-	clipped = _clip_polygon_against_horizontal(clipped, rect.position.y + rect.size.y, false)
-	return clipped
-
-func _clip_polygon_against_vertical(
-	polygon: PackedVector2Array,
-	x_edge: float,
-	keep_greater: bool
-) -> PackedVector2Array:
-	var result := PackedVector2Array()
-	if polygon.is_empty():
-		return result
-
-	var previous: Vector2 = polygon[polygon.size() - 1]
-	var previous_inside: bool = previous.x >= x_edge if keep_greater else previous.x <= x_edge
-	for current in polygon:
-		var current_inside: bool = current.x >= x_edge if keep_greater else current.x <= x_edge
-		if current_inside != previous_inside:
-			var delta_x: float = current.x - previous.x
-			if not is_zero_approx(delta_x):
-				var t: float = (x_edge - previous.x) / delta_x
-				result.append(previous + ((current - previous) * t))
-		if current_inside:
-			result.append(current)
-		previous = current
-		previous_inside = current_inside
-
-	return result
-
-func _clip_polygon_against_horizontal(
-	polygon: PackedVector2Array,
-	y_edge: float,
-	keep_greater: bool
-) -> PackedVector2Array:
-	var result := PackedVector2Array()
-	if polygon.is_empty():
-		return result
-
-	var previous: Vector2 = polygon[polygon.size() - 1]
-	var previous_inside: bool = previous.y >= y_edge if keep_greater else previous.y <= y_edge
-	for current in polygon:
-		var current_inside: bool = current.y >= y_edge if keep_greater else current.y <= y_edge
-		if current_inside != previous_inside:
-			var delta_y: float = current.y - previous.y
-			if not is_zero_approx(delta_y):
-				var t: float = (y_edge - previous.y) / delta_y
-				result.append(previous + ((current - previous) * t))
-		if current_inside:
-			result.append(current)
-		previous = current
-		previous_inside = current_inside
-
-	return result
 
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
@@ -943,12 +770,20 @@ func _get_play_render_rect() -> Rect2:
 	return Rect2(fitted_position, fitted_size)
 
 func _initialize_ship_slots() -> void:
+	var world_node := get_node_or_null("World")
+	if world_node == null:
+		world_node = Node2D.new()
+		world_node.name = "World"
+		add_child(world_node)
+		
 	ship_slots.clear()
 	ship_owner_by_slot.clear()
 	var index: int = 0
 	while index < MAX_SHIPS:
-		var ship: ShipNavigation = SHIP_NAVIGATION_SCRIPT.new()
+		var ship: Ship = SHIP_SCENE.instantiate()
 		ship.hide()
+		ship.world_bounds = WORLD_BOUNDS
+		world_node.add_child(ship)
 		ship_slots.append(ship)
 		ship_owner_by_slot.append(-1)
 		index += 1
@@ -987,7 +822,10 @@ func _assign_peer_to_slot(peer_id: int, slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = peer_id
 	input_by_peer.erase(peer_id)
 	_set_damage_immunity_for_peer(peer_id)
-	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
+	
+	var ship: Ship = ship_slots[slot_index]
+	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
+	ship.modulate = _get_ship_color_for_slot(slot_index)
 
 func _release_slot(slot_index: int) -> void:
 	var peer_id: int = ship_owner_by_slot[slot_index]
@@ -1057,14 +895,15 @@ func _update_server_ships(delta: float) -> void:
 		if _is_peer_damage_immune(owner_id):
 			acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER
 
-		ship_slots[index].update_host(
+		var ship: Ship = ship_slots[index]
+		ship.is_immune = _is_peer_damage_immune(owner_id)
+		ship.update_movement(
 			delta,
 			turn_left,
 			turn_right,
 			accelerate,
 			decelerate,
-			acceleration_multiplier,
-			WORLD_BOUNDS
+			acceleration_multiplier
 		)
 		index += 1
 
@@ -1104,13 +943,13 @@ func _sync_ships_to_clients() -> void:
 
 	var index: int = 0
 	while index < MAX_SHIPS:
-		var ship: ShipNavigation = ship_slots[index]
+		var ship: Ship = ship_slots[index]
 		var owner_id: int = ship_owner_by_slot[index]
 		owner_ids.append(owner_id)
 		positions.append(ship.position)
-		rotations.append(ship.rotation_radians)
-		speeds.append(ship.speed)
-		actives.append(ship.initialized and owner_id != -1)
+		rotations.append(ship.rotation)
+		speeds.append(ship.current_speed)
+		actives.append(ship.visible and owner_id != -1)
 		immunity_remaining_seconds.append(_get_peer_immunity_remaining_seconds(owner_id))
 		index += 1
 
@@ -1175,14 +1014,14 @@ func _world_to_screen_position(world_position: Vector2, play_rect: Rect2) -> Vec
 func _spawn_projectile_from_slot(slot_index: int) -> void:
 	if slot_index < 0 or slot_index >= ship_slots.size():
 		return
-	var ship: ShipNavigation = ship_slots[slot_index]
-	if not ship.initialized:
+	var ship: Ship = ship_slots[slot_index]
+	if not ship.visible:
 		return
 	var shooter_peer_id: int = ship_owner_by_slot[slot_index]
 	if shooter_peer_id == -1:
 		return
 
-	var forward := Vector2(0, 1).rotated(ship.rotation_radians)
+	var forward := Vector2.UP.rotated(ship.rotation)
 	projectiles.append({
 		"position": _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET)),
 		"velocity": forward * PROJECTILE_SPEED,
@@ -1236,8 +1075,8 @@ func _get_hit_ship_slot(projectile_position: Vector2, shooter_peer_id: int) -> i
 		if _is_peer_damage_immune(owner_id):
 			slot_index += 1
 			continue
-		var ship: ShipNavigation = ship_slots[slot_index]
-		if ship.initialized and ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
+		var ship: Ship = ship_slots[slot_index]
+		if ship.visible and ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
 			return slot_index
 		slot_index += 1
 	return -1
