@@ -29,7 +29,7 @@ const IMMUNITY_RING_RENDER_SIDES := 48
 const SHIP_HIT_RADIUS := 18.0
 const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	# Wrap around logic
 	_wrap_to_bounds()
 	queue_redraw()
