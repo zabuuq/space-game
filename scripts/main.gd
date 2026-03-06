@@ -455,40 +455,40 @@ func _handle_local_input() -> void:
 		local_ship.request_full_stop.rpc_id(1)
 
 func _server_rule_checks(_delta: float) -> void:
+	var all_ships := _get_all_ships()
+	var all_projectiles := _get_all_projectiles()
+
 	# Update ship immunity status
-	for ship in _get_all_ships():
+	for ship in all_ships:
 		var owner_id = ship.get_multiplayer_authority()
 		ship.is_immune = _is_peer_damage_immune(owner_id)
 		ship.acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER if ship.is_immune else 1.0
 
 	# Projectile collision detection
 	var score_changed := false
-	for proj in _get_all_projectiles():
-		var hit_peer_id = _get_hit_ship_peer(proj.position, proj.shooter_peer_id)
-		if hit_peer_id != -1:
-			_reset_ship_for_peer(hit_peer_id)
+	for proj in all_projectiles:
+		var hit_ship = _get_hit_ship(proj.position, proj.shooter_peer_id, all_ships)
+		if hit_ship != null:
+			var hit_peer_id = hit_ship.get_multiplayer_authority()
+			_reset_ship(hit_ship, hit_peer_id)
 			score_changed = _award_point(proj.shooter_peer_id) or score_changed
 			proj.queue_free()
 
 	if score_changed:
 		_broadcast_peer_roster()
 
-func _get_hit_ship_peer(projectile_position: Vector2, shooter_peer_id: int) -> int:
-	for ship in _get_all_ships():
+func _get_hit_ship(projectile_position: Vector2, shooter_peer_id: int, ships: Array[Ship]) -> Ship:
+	for ship in ships:
 		var owner_id = ship.get_multiplayer_authority()
 		if owner_id == -1 or owner_id == shooter_peer_id:
 			continue
 		if _is_peer_damage_immune(owner_id):
 			continue
 		if ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
-			return owner_id
-	return -1
+			return ship
+	return null
 
-func _reset_ship_for_peer(peer_id: int) -> void:
-	var ship = _get_ship_node(peer_id)
-	if ship == null:
-		return
-	
+func _reset_ship(ship: Ship, peer_id: int) -> void:
 	var slot_index = _get_slot_index_for_peer(peer_id)
 	if slot_index != -1:
 		_set_damage_immunity_for_peer(peer_id)
