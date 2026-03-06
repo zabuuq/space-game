@@ -36,7 +36,7 @@ var _input_decelerate := false
 const IMMUNITY_RING_WIDTH := 2.0
 const IMMUNITY_RING_RENDER_SIDES := 48
 const SHIP_HIT_RADIUS := 9.0
-const IMMUNITY_RING_EXTRA_PIXELS := 4.0
+const IMMUNITY_RING_EXTRA_PIXELS := 13.0
 
 const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
 const PROJECTILE_SPEED := 260.0
