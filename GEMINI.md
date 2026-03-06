@@ -55,6 +55,11 @@
     3. **To Host:** Click "Host". By default, it listens on port `56419`.
     4. **To Join:** Click "Join", enter the host's IP address (use `127.0.0.1` for local testing), and click "Connect".
 *   **Multiplayer Testing:** Run multiple instances locally; use `127.0.0.1` for the join IP.
+*   **Automated Testing:** 
+    *   The project uses the **GUT (Godot Unit Test)** framework.
+    *   All tests must be placed in the `/tests/` directory and prefixed with `test_` (e.g., `test_peer_roster_service.gd`).
+    *   When implementing new pure data structures, math functions, or isolated logic, corresponding GUT unit tests should be created.
+    *   Run tests headlessly by executing the `test_runner.tscn` scene.
 *   **Performance:** Favor signals for state changes; avoid polling in `_process` unless necessary for physics/rendering. Use `MultiplayerSynchronizer` to efficiently sync node states.
 
 ## Boundaries

@@ -41,8 +41,6 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 ]
 
 const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
-const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
-const MAIN_UI_SCRIPT := preload("res://scripts/main_ui.gd")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
@@ -54,7 +52,6 @@ var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.n
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
 var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
 
-var ship_slots: Array[Ship] = []
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var local_player_name: String = ""
@@ -71,79 +68,6 @@ var connect_retry_pending := false
 var connect_retry_timer := 0.0
 var connecting_dot_count := 0
 var connecting_dot_timer := 0.0
-
-@rpc("authority", "call_remote", "unreliable")
-func sync_ship_roster(
-	owner_ids: Array[int],
-	observer_ids: Array[int]
-) -> void:
-	if multiplayer.is_server():
-		return
-
-	var total: int = owner_ids.size()
-	var index: int = 0
-	while index < MAX_SHIPS:
-		var owner_id: int = -1
-		if index < total:
-			owner_id = owner_ids[index]
-
-		ship_owner_by_slot[index] = owner_id
-		index += 1
-
-	observer_queue = observer_ids.duplicate()
-	_update_local_connection_status_from_roles()
-	_refresh_peer_list()
-	queue_redraw()
-
-@rpc("any_peer", "unreliable")
-func submit_ship_input(
-	turn_left: bool,
-	turn_right: bool,
-	accelerate: bool,
-	decelerate: bool
-) -> void:
-	if not multiplayer.is_server():
-		return
-
-	var sender_id: int = multiplayer.get_remote_sender_id()
-	if _get_slot_index_for_peer(sender_id) == -1:
-		return
-
-	input_by_peer[sender_id] = {
-		"left": turn_left,
-		"right": turn_right,
-		"accelerate": accelerate,
-		"decelerate": decelerate
-	}
-
-@rpc("any_peer", "reliable")
-func request_full_stop() -> void:
-	if not multiplayer.is_server():
-		return
-
-	var sender_id: int = multiplayer.get_remote_sender_id()
-	var slot_index: int = _get_slot_index_for_peer(sender_id)
-	if slot_index == -1:
-		return
-
-	var ship: ShipNavigation = ship_slots[slot_index]
-	ship.full_stop()
-	_sync_ships_to_clients()
-	queue_redraw()
-
-@rpc("any_peer", "reliable")
-func request_fire_projectile() -> void:
-	if not multiplayer.is_server():
-		return
-
-	var sender_id: int = multiplayer.get_remote_sender_id()
-	var slot_index: int = _get_slot_index_for_peer(sender_id)
-	if slot_index == -1:
-		return
-
-	_spawn_projectile_from_slot(slot_index)
-	queue_redraw()
-
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -274,7 +198,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	peer_roster.clear()
 	peer_score_by_id.clear()
 	_refresh_peer_list()
-	_clear_ship_roles()
+	_clear_session_state()
 	local_fire_cooldown = 0.0
 
 func _set_status(value: String) -> void:
@@ -486,7 +410,6 @@ func _process(delta: float) -> void:
 	_update_connect_sequence(delta)
 	
 	# Update World transform to fit the play area
-	var world_node := get_node_or_null("World")
 	if world_node != null:
 		var play_rect := _get_play_render_rect()
 		world_node.position = play_rect.position
@@ -503,10 +426,13 @@ func _process(delta: float) -> void:
 	_handle_local_input()
 
 	if multiplayer.is_server():
-		_update_server_ships(delta)
-		_update_projectiles(delta)
-		_sync_ships_to_clients()
-			queue_redraw()
+		_server_rule_checks(delta)
+		return
+
+func _handle_local_input() -> void:
+	var local_id: int = multiplayer.get_unique_id()
+	var local_ship := _get_ship_node(local_id)
+	if local_ship == null:
 		return
 
 	if _is_typing_name():
@@ -674,61 +600,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event != null and mouse_event.pressed:
 			_release_name_focus_if_clicked_outside(mouse_event.position)
-	if _is_typing_name():
-		return
-	if not (event is InputEventKey):
-		return
-
-	var key_event := event as InputEventKey
-	if key_event == null:
-		return
-	if not key_event.pressed or key_event.echo:
-		return
-
-	if key_event.physical_keycode == KEY_X and multiplayer.is_server():
-		var host_id: int = multiplayer.get_unique_id()
-		var host_slot: int = _get_slot_index_for_peer(host_id)
-		if host_slot == -1:
-			return
-		ship_slots[host_slot].full_stop()
-		_sync_ships_to_clients()
-		queue_redraw()
-		return
-
-	var local_id: int = multiplayer.get_unique_id()
-	var local_slot_index: int = _get_slot_index_for_peer(local_id)
-	if local_slot_index == -1:
-		return
-
-	if key_event.physical_keycode == KEY_X:
-		if multiplayer.is_server():
-			return
-		request_full_stop.rpc_id(1)
-		return
-
-	if key_event.physical_keycode != KEY_SPACE:
-		return
-
-func _handle_local_continuous_fire() -> void:
-	if local_fire_cooldown > 0.0:
-		return
-	if _is_typing_name():
-		return
-	if not Input.is_physical_key_pressed(KEY_SPACE):
-		return
-
-	var local_id: int = multiplayer.get_unique_id()
-	var local_slot_index: int = _get_slot_index_for_peer(local_id)
-	if local_slot_index == -1:
-		return
-
-	local_fire_cooldown = FIRE_INTERVAL_SECONDS
-	if multiplayer.is_server():
-		_spawn_projectile_from_slot(local_slot_index)
-			queue_redraw()
-		return
-
-	request_fire_projectile.rpc_id(1)
 
 func _draw() -> void:
 	# main.gd only draws the black background of the play area
@@ -756,31 +627,7 @@ func _get_play_render_rect() -> Rect2:
 	var fitted_position := container.position + ((container.size - fitted_size) * 0.5)
 	return Rect2(fitted_position, fitted_size)
 
-func _initialize_ship_slots() -> void:
-	var world_node := get_node_or_null("World")
-	if world_node == null:
-		world_node = Node2D.new()
-		world_node.name = "World"
-		add_child(world_node)
-		
-	ship_slots.clear()
-	ship_owner_by_slot.clear()
-	var index: int = 0
-	while index < MAX_SHIPS:
-		var ship: Ship = SHIP_SCENE.instantiate()
-		ship.hide()
-		ship.world_bounds = WORLD_BOUNDS
-		world_node.add_child(ship)
-		ship_slots.append(ship)
-		ship_owner_by_slot.append(-1)
-		index += 1
-
-func _hide_all_ships() -> void:
-	for ship in ship_slots:
-		ship.hide()
-	queue_redraw()
-
-func _clear_ship_roles() -> void:
+func _clear_session_state() -> void:
 	observer_queue.clear()
 	damage_immunity_until_by_peer.clear()
 	ship_owner_by_slot.fill(-1)
@@ -800,16 +647,14 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = peer_id
 	_set_damage_immunity_for_peer(peer_id)
 	
-	var ship: Ship = ship_slots[slot_index]
+	var ship: Ship = SHIP_SCENE.instantiate()
+	ship.name = "Ship_%d" % peer_id
+	world_node.add_child(ship, true)
+	ship.set_multiplayer_authority(peer_id)
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
-	ship.modulate = _get_ship_color_for_slot(slot_index)
-
-func _release_slot(slot_index: int) -> void:
-	var peer_id: int = ship_owner_by_slot[slot_index]
-	if peer_id != -1:
-		damage_immunity_until_by_peer.erase(peer_id)
-	ship_owner_by_slot[slot_index] = -1
-	ship_slots[slot_index].hide()
+	ship.modulate = _get_ship_color_for_peer(peer_id)
+	ship.world_bounds = WORLD_BOUNDS
+	_update_local_status_for_peer(peer_id)
 
 func _promote_observer_to_slot(slot_index: int) -> void:
 	while not observer_queue.is_empty():
@@ -834,91 +679,9 @@ func _get_slot_index_for_peer(peer_id: int) -> int:
 		index += 1
 	return -1
 
-func _update_server_ships(delta: float) -> void:
-	var host_id: int = multiplayer.get_unique_id()
-	var index: int = 0
-	while index < MAX_SHIPS:
-		var owner_id: int = ship_owner_by_slot[index]
-		if owner_id == -1:
-			index += 1
-			continue
-
-		var turn_left := false
-		var turn_right := false
-		var accelerate := false
-		var decelerate := false
-		var acceleration_multiplier := 1.0
-
-		if owner_id == host_id:
-			if _is_typing_name():
-				turn_left = false
-				turn_right = false
-				accelerate = false
-				decelerate = false
-			else:
-				turn_left = Input.is_physical_key_pressed(KEY_A)
-				turn_right = Input.is_physical_key_pressed(KEY_D)
-				accelerate = Input.is_physical_key_pressed(KEY_W)
-				decelerate = Input.is_physical_key_pressed(KEY_S)
-		else:
-			var peer_input: Dictionary = input_by_peer.get(owner_id, {})
-			turn_left = bool(peer_input.get("left", false))
-			turn_right = bool(peer_input.get("right", false))
-			accelerate = bool(peer_input.get("accelerate", false))
-			decelerate = bool(peer_input.get("decelerate", false))
-
-		if _is_peer_damage_immune(owner_id):
-			acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER
-
-		var ship: Ship = ship_slots[index]
-		ship.is_immune = _is_peer_damage_immune(owner_id)
-		ship.update_movement(
-			delta,
-			turn_left,
-			turn_right,
-			accelerate,
-			decelerate,
-			acceleration_multiplier
-		)
-		index += 1
-
-func _send_client_input_to_server() -> void:
-	var local_id: int = multiplayer.get_unique_id()
-	if _get_slot_index_for_peer(local_id) == -1:
-		return
-
-	var turn_left := false
-	var turn_right := false
-	var accelerate := false
-	var decelerate := false
-	if not _is_typing_name():
-		turn_left = Input.is_physical_key_pressed(KEY_A)
-		turn_right = Input.is_physical_key_pressed(KEY_D)
-		accelerate = Input.is_physical_key_pressed(KEY_W)
-		decelerate = Input.is_physical_key_pressed(KEY_S)
-
-	submit_ship_input.rpc_id(
-		1,
-		turn_left,
-		turn_right,
-		accelerate,
-		decelerate
-	)
-
-func _sync_ships_to_clients() -> void:
-	if not multiplayer.is_server():
-		return
-
-	var owner_ids: Array[int] = []
-	var index: int = 0
-	while index < MAX_SHIPS:
-		owner_ids.append(ship_owner_by_slot[index])
-		index += 1
-
-	sync_ship_roster.rpc(
-		owner_ids,
-		observer_queue.duplicate()
-	)
+func _update_local_status_for_peer(peer_id: int) -> void:
+	if peer_id == multiplayer.get_unique_id():
+		_update_local_connection_status_from_roles()
 
 func _update_local_connection_status_from_roles() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -955,72 +718,6 @@ func _to_world_position(normalized_position: Vector2) -> Vector2:
 		normalized_position.x * WORLD_BOUNDS.size.x,
 		normalized_position.y * WORLD_BOUNDS.size.y
 	)
-
-func _world_to_screen_position(world_position: Vector2, play_rect: Rect2) -> Vector2:
-	var normalized_position := Vector2.ZERO
-	if WORLD_BOUNDS.size.x > 0.0:
-		normalized_position.x = (world_position.x - WORLD_BOUNDS.position.x) / WORLD_BOUNDS.size.x
-	if WORLD_BOUNDS.size.y > 0.0:
-		normalized_position.y = (world_position.y - WORLD_BOUNDS.position.y) / WORLD_BOUNDS.size.y
-	return play_rect.position + (normalized_position * play_rect.size)
-
-func _spawn_projectile_from_slot(slot_index: int) -> void:
-	if slot_index < 0 or slot_index >= ship_slots.size(): return
-	var ship: Ship = ship_slots[slot_index]
-	if not ship.visible: return
-	var shooter_peer_id: int = ship_owner_by_slot[slot_index]
-	if shooter_peer_id == -1: return
-
-	var forward := Vector2.UP.rotated(ship.rotation)
-	var proj = PROJECTILE_SCENE.instantiate()
-	proj.position = _wrap_world_position(ship.position + (forward * PROJECTILE_SPAWN_OFFSET))
-	proj.velocity = forward * PROJECTILE_SPEED
-	proj.shooter_peer_id = shooter_peer_id
-	proj.slot_index = slot_index
-	proj.modulate = _get_ship_color_for_slot(slot_index)
-	var world_node = get_node_or_null("World")
-	if world_node:
-		world_node.add_child(proj, true)
-
-func _update_projectiles(delta: float) -> void:
-	var world_node = get_node_or_null("World")
-	if world_node == null: return
-	var score_changed := false
-	
-	for child in world_node.get_children():
-		if child is Projectile:
-			var hit_slot = _get_hit_ship_slot(child.position, child.shooter_peer_id)
-			if hit_slot != -1:
-				_reset_ship_slot(hit_slot)
-				score_changed = _award_point(child.shooter_peer_id) or score_changed
-				child.queue_free()
-
-	if score_changed:
-		_broadcast_peer_roster()
-
-func _get_hit_ship_slot(projectile_position: Vector2, shooter_peer_id: int) -> int:
-	var slot_index: int = 0
-	while slot_index < MAX_SHIPS:
-		var owner_id: int = ship_owner_by_slot[slot_index]
-		if owner_id == -1 or owner_id == shooter_peer_id:
-			slot_index += 1
-			continue
-		if _is_peer_damage_immune(owner_id):
-			slot_index += 1
-			continue
-		var ship: Ship = ship_slots[slot_index]
-		if ship.visible and ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
-			return slot_index
-		slot_index += 1
-	return -1
-
-func _reset_ship_slot(slot_index: int) -> void:
-	if slot_index < 0 or slot_index >= ship_slots.size():
-		return
-	var owner_id: int = ship_owner_by_slot[slot_index]
-	if owner_id != -1:
-		_set_damage_immunity_for_peer(owner_id)
-	ship_slots[slot_index].reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 
 func _set_damage_immunity_for_peer(peer_id: int) -> void:
 	if peer_id == -1:
@@ -1069,22 +766,3 @@ func _get_sync_scores(peer_ids: Array[int]) -> Array[int]:
 	for peer_id in peer_ids:
 		scores.append(int(peer_score_by_id.get(peer_id, 0)))
 	return scores
-
-func _wrap_world_position(current: Vector2) -> Vector2:
-	var min_x: float = WORLD_BOUNDS.position.x
-	var min_y: float = WORLD_BOUNDS.position.y
-	var max_x: float = WORLD_BOUNDS.position.x + WORLD_BOUNDS.size.x
-	var max_y: float = WORLD_BOUNDS.position.y + WORLD_BOUNDS.size.y
-
-	var wrapped: Vector2 = current
-	if wrapped.x < min_x:
-		wrapped.x = max_x
-	elif wrapped.x > max_x:
-		wrapped.x = min_x
-
-	if wrapped.y < min_y:
-		wrapped.y = max_y
-	elif wrapped.y > max_y:
-		wrapped.y = min_y
-
-	return wrapped
