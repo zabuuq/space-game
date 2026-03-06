@@ -29,9 +29,6 @@ func _physics_process(delta: float) -> void:
 		
 	_wrap_to_bounds()
 
-func _process(_delta: float) -> void:
-	queue_redraw()
-
 func _wrap_to_bounds() -> void:
 	var pos := position
 	var wrap_triggered := false

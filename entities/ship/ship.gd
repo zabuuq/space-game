@@ -22,7 +22,11 @@ var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 ## Movement state
 var current_speed := 0.0
 var acceleration_multiplier := 1.0
-var is_immune := false
+var is_immune := false :
+	set(value):
+		if is_immune != value:
+			is_immune = value
+			queue_redraw()
 
 var _input_left := false
 var _input_right := false
@@ -52,7 +56,6 @@ func _physics_process(_delta: float) -> void:
 
 	# Wrap around logic (all clients should probably do this or rely on sync)
 	_wrap_to_bounds()
-	queue_redraw()
 
 @rpc("any_peer", "call_local", "unreliable")
 func submit_input(

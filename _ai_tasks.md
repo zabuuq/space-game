@@ -20,9 +20,7 @@
 - [x] 16. Decouple main.gd to pure game rule orchestrator.
 - [x] 17. Fix Visual Screen-Wrap Glitch in Ship by un-rotating drawing offsets.
 - [x] 18. Optimize O(P * N) Collision Checks by caching active entities in main.gd.
-
-- [ ] 19. Remove Unnecessary `queue_redraw()` Calls
-  - Remove unconditional `queue_redraw()` calls from `_physics_process` and `_process` in `ship.gd` and `projectile.gd` to save CPU overhead. Node position changes update visuals automatically.
+- [x] 19. Remove Unnecessary queue_redraw() Calls from ship and projectile process loops.
 
 - [ ] 20. Clean Up Dead Code
   - Delete the unused `apply_network_state()` function from `ship.gd` since state replication is handled by `MultiplayerSynchronizer`.
