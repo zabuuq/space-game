@@ -37,17 +37,17 @@ func _wrap_to_bounds() -> void:
 	var wrap_triggered := false
 	
 	if pos.x < world_bounds.position.x:
-		pos.x = world_bounds.end.x
+		pos.x += world_bounds.size.x
 		wrap_triggered = true
 	elif pos.x > world_bounds.end.x:
-		pos.x = world_bounds.position.x
+		pos.x -= world_bounds.size.x
 		wrap_triggered = true
 		
 	if pos.y < world_bounds.position.y:
-		pos.y = world_bounds.end.y
+		pos.y += world_bounds.size.y
 		wrap_triggered = true
 	elif pos.y > world_bounds.end.y:
-		pos.y = world_bounds.position.y
+		pos.y -= world_bounds.size.y
 		wrap_triggered = true
 		
 	if wrap_triggered:
@@ -73,6 +73,6 @@ func _draw() -> void:
 		points.append(Vector2(cos(angle), sin(angle)) * PROJECTILE_RADIUS)
 		
 	for offset in offsets:
-		draw_set_transform(offset, 0, Vector2.ONE)
+		draw_set_transform(offset.rotated(-rotation), 0, Vector2.ONE)
 		draw_colored_polygon(points, modulate)
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)

@@ -160,17 +160,17 @@ func _wrap_to_bounds() -> void:
 	var wrap_triggered := false
 	
 	if pos.x < world_bounds.position.x:
-		pos.x = world_bounds.end.x
+		pos.x += world_bounds.size.x
 		wrap_triggered = true
 	elif pos.x > world_bounds.end.x:
-		pos.x = world_bounds.position.x
+		pos.x -= world_bounds.size.x
 		wrap_triggered = true
 		
 	if pos.y < world_bounds.position.y:
-		pos.y = world_bounds.end.y
+		pos.y += world_bounds.size.y
 		wrap_triggered = true
 	elif pos.y > world_bounds.end.y:
-		pos.y = world_bounds.position.y
+		pos.y -= world_bounds.size.y
 		wrap_triggered = true
 		
 	if wrap_triggered:
@@ -197,7 +197,7 @@ func _draw() -> void:
 		# Check if this offset drawing would even be visible
 		# Actually, since it's local space, it's easier to just draw.
 		# If the node is at (5,5), drawing at (0,0) + (1600,0) will draw at (1605,5).
-		draw_set_transform(offset, 0, Vector2.ONE)
+		draw_set_transform(offset.rotated(-rotation), 0, Vector2.ONE)
 		draw_polyline(SHIP_POINTS, modulate, SHIP_OUTLINE_WIDTH, true)
 		
 		if is_immune:

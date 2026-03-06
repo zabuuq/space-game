@@ -11,22 +11,22 @@ func before_each():
 func test_wrap_to_bounds_right():
 	ship.position = Vector2(1050, 500)
 	ship._wrap_to_bounds()
-	assert_eq(ship.position.x, 0.0, "Should wrap to left edge")
+	assert_eq(ship.position.x, 50.0, "Should wrap to left edge")
 
 func test_wrap_to_bounds_left():
 	ship.position = Vector2(-50, 500)
 	ship._wrap_to_bounds()
-	assert_eq(ship.position.x, 1000.0, "Should wrap to right edge")
+	assert_eq(ship.position.x, 950.0, "Should wrap to right edge")
 
 func test_wrap_to_bounds_bottom():
 	ship.position = Vector2(500, 1050)
 	ship._wrap_to_bounds()
-	assert_eq(ship.position.y, 0.0, "Should wrap to top edge")
+	assert_eq(ship.position.y, 50.0, "Should wrap to top edge")
 
 func test_wrap_to_bounds_top():
 	ship.position = Vector2(500, -50)
 	ship._wrap_to_bounds()
-	assert_eq(ship.position.y, 1000.0, "Should wrap to bottom edge")
+	assert_eq(ship.position.y, 950.0, "Should wrap to bottom edge")
 
 func test_update_movement_acceleration():
 	ship.current_speed = 0.0
