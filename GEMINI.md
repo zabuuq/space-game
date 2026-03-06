@@ -55,11 +55,13 @@
     3. **To Host:** Click "Host". By default, it listens on port `56419`.
     4. **To Join:** Click "Join", enter the host's IP address (use `127.0.0.1` for local testing), and click "Connect".
 *   **Multiplayer Testing:** Run multiple instances locally; use `127.0.0.1` for the join IP.
-*   **Automated Testing:** 
-    *   The project uses the **GUT (Godot Unit Test)** framework.
-    *   All tests must be placed in the `/tests/` directory and prefixed with `test_` (e.g., `test_peer_roster_service.gd`).
-    *   When implementing new pure data structures, math functions, or isolated logic, corresponding GUT unit tests should be created.
-    *   Run tests headlessly by executing the `test_runner.tscn` scene.
+*   **Automated Testing & Continuous Integration (CI):** 
+    *   The project uses the **GUT (Godot Unit Test)** framework. All tests must be placed in the `/tests/` directory and prefixed with `test_` (e.g., `test_peer_roster_service.gd`).
+    *   **Mandatory Execution:** Developers and AI agents MUST execute the full test suite locally before staging or committing any code changes. Code that breaks existing tests is invalid.
+    *   **Test Coverage:** When adding or modifying pure data structures, math functions, or isolated logic (like scoring or array manipulation), you MUST create or update the corresponding GUT unit tests to cover the new behavior.
+    *   **Running the Suite:** Run the entire test suite headlessly via the command line to simulate the CI environment:
+        `godot --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://tests`
+    *   Alternatively, execute the `test_runner.tscn` scene within the Godot editor.
 *   **Performance:** Favor signals for state changes; avoid polling in `_process` unless necessary for physics/rendering. Use `MultiplayerSynchronizer` to efficiently sync node states.
 
 ## Boundaries
