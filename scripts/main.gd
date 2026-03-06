@@ -1053,5 +1053,3 @@ func _wrap_world_position(current: Vector2) -> Vector2:
 		wrapped.y = min_y
 
 	return wrapped
-
-
