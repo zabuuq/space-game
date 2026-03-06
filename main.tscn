@@ -1,6 +1,20 @@
-[gd_scene load_steps=2 format=3 uid="uid://co50k5gavw7d2"]
+[gd_scene load_steps=3 format=3 uid="uid://co50k5gavw7d2"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_3wnca"]
+[ext_resource type="PackedScene" uid="uid://b8q7p5p7j6p1m" path="res://scenes/main_ui.tscn" id="2_h2a3v"]
 
 [node name="Main" type="Node2D"]
 script = ExtResource("1_3wnca")
+
+[node name="MainUi" parent="." instance=ExtResource("2_h2a3v")]
+unique_name_in_owner = true
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="ShipSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://entities/ship/ship.tscn")
+spawn_path = NodePath("../World")
+
+[node name="ProjectileSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://entities/projectile/projectile.tscn")
+spawn_path = NodePath("../World")
