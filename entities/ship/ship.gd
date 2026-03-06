@@ -38,23 +38,23 @@ const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
 const PROJECTILE_SPEED := 260.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
 
-func _physics_process(delta: float) -> void:
-	if multiplayer.is_server():
+func _physics_process(_delta: float) -> void:
+	if multiplayer.multiplayer_peer != null and multiplayer.is_server():
 		# Update movement based on input on server
 		update_movement(
-			delta,
+			_delta,
 			_input_left,
 			_input_right,
 			_input_accelerate,
 			_input_decelerate,
 			acceleration_multiplier
 		)
-	
+
 	# Wrap around logic (all clients should probably do this or rely on sync)
 	_wrap_to_bounds()
 	queue_redraw()
 
-@rpc("any_peer", "unreliable")
+@rpc("any_peer", "call_local", "unreliable")
 func submit_input(
 	turn_left: bool,
 	turn_right: bool,
@@ -65,22 +65,22 @@ func submit_input(
 		return
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
-		
+
 	_input_left = turn_left
 	_input_right = turn_right
 	_input_accelerate = accelerate
 	_input_decelerate = decelerate
 
-@rpc("any_peer", "reliable")
+@rpc("any_peer", "call_local", "reliable")
 func request_full_stop() -> void:
 	if not multiplayer.is_server():
 		return
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
-	
+
 	full_stop()
 
-@rpc("any_peer", "unreliable")
+@rpc("any_peer", "call_local", "unreliable")
 func request_fire() -> void:
 	if not multiplayer.is_server():
 		return
@@ -93,7 +93,7 @@ func _spawn_projectile() -> void:
 	var forward := Vector2.UP.rotated(rotation)
 	var proj = PROJECTILE_SCENE.instantiate()
 	# Wrap spawn position too
-	var spawn_pos = global_position + (forward * PROJECTILE_SPAWN_OFFSET)
+	var spawn_pos = position + (forward * PROJECTILE_SPAWN_OFFSET)
 	
 	# Projectile class handles its own wrapping, so we just pass the initial wrapped pos
 	proj.position = _wrap_pos(spawn_pos)
@@ -144,7 +144,7 @@ func update_movement(
 		velocity = Vector2.ZERO
 
 func reset(center: Vector2) -> void:
-	global_position = center
+	position = center
 	rotation = 0.0 # Facing UP
 	current_speed = 0.0
 	velocity = Vector2.ZERO
@@ -156,7 +156,7 @@ func full_stop() -> void:
 	velocity = Vector2.ZERO
 
 func _wrap_to_bounds() -> void:
-	var pos := global_position
+	var pos := position
 	var wrap_triggered := false
 	
 	if pos.x < world_bounds.position.x:
@@ -174,7 +174,7 @@ func _wrap_to_bounds() -> void:
 		wrap_triggered = true
 		
 	if wrap_triggered:
-		global_position = pos
+		position = pos
 
 func _draw() -> void:
 	# Draw the ship using manual polyline for the 8-bit feel
@@ -209,7 +209,7 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
 
 func apply_network_state(new_position: Vector2, new_rotation: float, new_speed: float) -> void:
-	global_position = new_position
+	position = new_position
 	rotation = new_rotation
 	current_speed = new_speed
 	queue_redraw()
