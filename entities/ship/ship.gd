@@ -9,11 +9,11 @@ const SHIP_OUTLINE_WIDTH := 3.0
 
 ## Ship model points (Asteroids-style)
 const SHIP_POINTS: PackedVector2Array = [
-	Vector2(0, -24),   # Forward "nose" point
-	Vector2(18, 24),   # Back right "wing" point
-	Vector2(0, 18),    # Back middle "engine" point
-	Vector2(-18, 24),  # Left back "wing" point
-	Vector2(0, -24)    # Connect back to nose
+	Vector2(0, -12),   # Forward "nose" point
+	Vector2(9, 12),    # Back right "wing" point
+	Vector2(0, 9),     # Back middle "engine" point
+	Vector2(-9, 12),   # Left back "wing" point
+	Vector2(0, -12)    # Connect back to nose
 ]
 
 ## Game world bounds for wrapping logic
@@ -35,7 +35,7 @@ var _input_decelerate := false
 
 const IMMUNITY_RING_WIDTH := 2.0
 const IMMUNITY_RING_RENDER_SIDES := 48
-const SHIP_HIT_RADIUS := 18.0
+const SHIP_HIT_RADIUS := 9.0
 const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
 const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")

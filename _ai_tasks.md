@@ -22,6 +22,7 @@
 - [x] 18. Optimize O(P * N) Collision Checks by caching active entities in main.gd.
 - [x] 19. Remove Unnecessary queue_redraw() Calls from ship and projectile process loops.
 - [x] 20. Clean Up Dead Code by deleting the unused apply_network_state() function from ship.gd.
+- [x] 21. Halve the initial rendering size of ships and projectiles.
 
 ## Notes
 

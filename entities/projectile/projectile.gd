@@ -2,7 +2,7 @@ extends Node2D
 class_name Projectile
 
 const PROJECTILE_MAX_TRAVEL := 400.0 # WORLD_BOUNDS.size.x * 0.25 (1600 * 0.25)
-const PROJECTILE_RADIUS := 3.0
+const PROJECTILE_RADIUS := 1.5
 const PROJECTILE_RENDER_SIDES := 12
 
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
