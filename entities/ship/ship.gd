@@ -210,9 +210,3 @@ func _draw() -> void:
 	
 	# Reset transform for any subsequent draws
 	draw_set_transform(Vector2.ZERO, 0, Vector2.ONE)
-
-func apply_network_state(new_position: Vector2, new_rotation: float, new_speed: float) -> void:
-	position = new_position
-	rotation = new_rotation
-	current_speed = new_speed
-	queue_redraw()

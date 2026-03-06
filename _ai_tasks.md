@@ -21,9 +21,7 @@
 - [x] 17. Fix Visual Screen-Wrap Glitch in Ship by un-rotating drawing offsets.
 - [x] 18. Optimize O(P * N) Collision Checks by caching active entities in main.gd.
 - [x] 19. Remove Unnecessary queue_redraw() Calls from ship and projectile process loops.
-
-- [ ] 20. Clean Up Dead Code
-  - Delete the unused `apply_network_state()` function from `ship.gd` since state replication is handled by `MultiplayerSynchronizer`.
+- [x] 20. Clean Up Dead Code by deleting the unused apply_network_state() function from ship.gd.
 
 ## Notes
 
