@@ -24,94 +24,15 @@ var current_speed := 0.0
 var acceleration_multiplier := 1.0
 var is_immune := false
 
-var _input_left := false
-var _input_right := false
-var _input_accelerate := false
-var _input_decelerate := false
-
 const IMMUNITY_RING_WIDTH := 2.0
 const IMMUNITY_RING_RENDER_SIDES := 48
 const SHIP_HIT_RADIUS := 18.0
 const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
 func _physics_process(delta: float) -> void:
-	if multiplayer.is_server():
-		# Update movement based on input on server
-		update_movement(
-			delta,
-			_input_left,
-			_input_right,
-			_input_accelerate,
-			_input_decelerate,
-			acceleration_multiplier
-		)
-	
-	# Wrap around logic (all clients should probably do this or rely on sync)
-	# But sync is only once per frame, wrap might be needed for smooth display.
+	# Wrap around logic
 	_wrap_to_bounds()
 	queue_redraw()
-
-@rpc("any_peer", "unreliable")
-func submit_input(
-	turn_left: bool,
-	turn_right: bool,
-	accelerate: bool,
-	decelerate: bool
-) -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
-		return
-		
-	_input_left = turn_left
-	_input_right = turn_right
-	_input_accelerate = accelerate
-	_input_decelerate = decelerate
-
-const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
-const PROJECTILE_SPEED := 260.0
-const PROJECTILE_SPAWN_OFFSET := 20.0
-
-@rpc("any_peer", "reliable")
-func request_full_stop() -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
-		return
-	
-	full_stop()
-
-@rpc("any_peer", "unreliable")
-func request_fire() -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
-		return
-	
-	_spawn_projectile()
-
-func _spawn_projectile() -> void:
-	var forward := Vector2.UP.rotated(rotation)
-	var proj = PROJECTILE_SCENE.instantiate()
-	# Wrap spawn position too
-	var spawn_pos = global_position + (forward * PROJECTILE_SPAWN_OFFSET)
-	
-	# Projectile class handles its own wrapping, so we just pass the initial wrapped pos
-	proj.position = _wrap_pos(spawn_pos)
-	proj.velocity = forward * PROJECTILE_SPEED
-	proj.shooter_peer_id = get_multiplayer_authority()
-	proj.modulate = modulate
-	proj.world_bounds = world_bounds
-	
-	get_parent().add_child(proj, true)
-
-func _wrap_pos(pos: Vector2) -> Vector2:
-	var wrapped := pos
-	if wrapped.x < world_bounds.position.x: wrapped.x = world_bounds.end.x
-	elif wrapped.x > world_bounds.end.x: wrapped.x = world_bounds.position.x
-	if wrapped.y < world_bounds.position.y: wrapped.y = world_bounds.end.y
-	elif wrapped.y > world_bounds.end.y: wrapped.y = world_bounds.position.y
-	return wrapped
 
 func update_movement(
 	delta: float,
