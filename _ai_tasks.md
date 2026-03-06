@@ -18,12 +18,8 @@
 - [x] 14. Refactor Projectiles into node entities.
 - [x] 15. Rebuild UI visually in the Godot Editor.
 - [x] 16. Decouple main.gd to pure game rule orchestrator.
-
-- [x] 17. Fix Visual Screen-Wrap Glitch in `Ship`
-  - Un-rotate the drawing offsets in `entities/ship/ship.gd`'s `_draw()` method so ghost ships wrap correctly along world axes rather than the ship's facing direction.
-
-- [ ] 18. Optimize `O(P * N)` Collision Checks
-  - Refactor `_server_rule_checks()` in `main.gd` to fetch active ships and projectiles once per frame instead of scanning the node tree for every projectile.
+- [x] 17. Fix Visual Screen-Wrap Glitch in Ship by un-rotating drawing offsets.
+- [x] 18. Optimize O(P * N) Collision Checks by caching active entities in main.gd.
 
 - [ ] 19. Remove Unnecessary `queue_redraw()` Calls
   - Remove unconditional `queue_redraw()` calls from `_physics_process` and `_process` in `ship.gd` and `projectile.gd` to save CPU overhead. Node position changes update visuals automatically.
@@ -37,6 +33,6 @@
 - Make sure `README.md` properly explains the program when changes are made.
   - You do not need to include a summary of the changes made, just make sure it still properly describes the game.
   - If `README.md` already properly describes the game, do not make any unecessary changes to it.
-- Mark task as finished and change it to a one line summary.
+- When you mark a task as finished, update it to a one line summary and group it with the finished tasks.
 - Commit and push changes to the current branch in the repository unless you are on the main branch.
   - If you are on the main branch, create a new branch and switch to that.
