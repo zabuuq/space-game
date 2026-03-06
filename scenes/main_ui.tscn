@@ -1,0 +1,250 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8q7p5p7j6p1m"]
+
+[ext_resource type="Script" path="res://scripts/main_ui.gd" id="1_u1a2b"]
+
+[node name="MainUi" type="CanvasLayer"]
+script = ExtResource("1_u1a2b")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.18, 0.18, 0.18, 1)
+
+[node name="RootRow" type="HBoxContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="LeftSection" type="Control" parent="RootRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.0
+
+[node name="LeftMargin" type="MarginContainer" parent="RootRow/LeftSection"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 52
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="LeftVBox" type="VBoxContainer" parent="RootRow/LeftSection/LeftMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ButtonMargin" type="MarginContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_constants/margin_left = 6
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 6
+theme_override_constants/margin_bottom = 6
+
+[node name="ButtonVBox" type="VBoxContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox/ButtonMargin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HostJoinRow" type="HBoxContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox/ButtonMargin/ButtonVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HostButton" type="Button" parent="RootRow/LeftSection/LeftMargin/LeftVBox/ButtonMargin/ButtonVBox/HostJoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
+text = "Host"
+
+[node name="JoinButton" type="Button" parent="RootRow/LeftSection/LeftMargin/LeftVBox/ButtonMargin/ButtonVBox/HostJoinRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
+text = "Join"
+
+[node name="DisconnectButton" type="Button" parent="RootRow/LeftSection/LeftMargin/LeftVBox/ButtonMargin/ButtonVBox"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Disconnect"
+
+[node name="StatusLabel" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Connection Status: Not connected"
+
+[node name="AddressGrid" type="GridContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="LocalIpTitle" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Local IP:"
+
+[node name="LocalIpLabel" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+
+[node name="ExternalIpTitle" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "External IP:"
+
+[node name="ExternalIpLabel" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+
+[node name="PortTitle" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Port:"
+
+[node name="PortLabel" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox/AddressGrid"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "56419"
+
+[node name="NameTitle" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Name/Color:"
+
+[node name="NameColorRow" type="HBoxContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="PlayerNameInput" type="LineEdit" parent="RootRow/LeftSection/LeftMargin/LeftVBox/NameColorRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 3.0
+theme_override_font_sizes/font_size = 19
+placeholder_text = "Enter name"
+max_length = 24
+
+[node name="PlayerColorDropdown" type="OptionButton" parent="RootRow/LeftSection/LeftMargin/LeftVBox/NameColorRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 19
+
+[node name="HSeparator1" type="HSeparator" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+
+[node name="Spacer1" type="Control" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="InstructionsHeading" type="RichTextLabel" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 19
+bbcode_enabled = true
+text = "[b]Instructions[/b]"
+fit_content = true
+scroll_active = false
+selection_enabled = false
+
+[node name="Instructions" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "W - Increase Speed
+S - Decrease Speed
+A - Turn Counter-Clockwise
+D - Turn Clockwise
+X - Full Stop
+Space - Fire Projectile"
+autowrap_mode = 3
+
+[node name="Spacer2" type="Control" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+
+[node name="Spacer3" type="Control" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="PlayersHeading" type="RichTextLabel" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 19
+bbcode_enabled = true
+text = "[b]Players[/b]"
+fit_content = true
+scroll_active = false
+selection_enabled = false
+
+[node name="PeerListContainer" type="VBoxContainer" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 2
+
+[node name="Separator" type="ColorRect" parent="RootRow"]
+custom_minimum_size = Vector2(2, 0)
+layout_mode = 2
+color = Color(0.3, 0.3, 0.3, 1)
+
+[node name="RightSection" type="ColorRect" parent="RootRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 4.0
+color = Color(0, 0, 0, 0)
+
+[node name="QuitButton" type="Button" parent="."]
+unique_name_in_owner = true
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 40.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 19
+text = "X"
+
+[node name="JoinPopup" type="Window" parent="."]
+unique_name_in_owner = true
+title = "Connect to Host"
+initial_position = 2
+size = Vector2i(340, 120)
+visible = false
+unresizable = true
+
+[node name="PopupVBox" type="VBoxContainer" parent="JoinPopup"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="JoinIpInput" type="LineEdit" parent="JoinPopup/PopupVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "127.0.0.1"
+placeholder_text = "Host IP"
+
+[node name="ConnectButton" type="Button" parent="JoinPopup/PopupVBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "Connect"

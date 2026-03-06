@@ -125,11 +125,11 @@
   * Create a `projectile.tscn` scene with its own `_draw()` method to maintain the 8-bit look.
   * Use a `MultiplayerSpawner` to handle projectile instantiation across the network.
 
-- [ ] 15. Rebuild the UI Visually (`scenes/main_ui.tscn`)
+- [x] 15. Rebuild the UI Visually (`scenes/main_ui.tscn`)
   * Build the UI visually in the Godot Editor using a `.tscn` file.
   * Update `main_ui.gd` to use `@onready` variables to reference the visual nodes created in the editor.
 
-- [ ] 16. Decouple `main.gd`
+- [x] 16. Decouple `main.gd`
   * Remove physics updates, networking RPCs, and entity drawing loops.
   * Reduce `main.gd` to its proper role as the game rule orchestrator (handling score, tracking who is in the game, and managing the initial server start/join commands).
 

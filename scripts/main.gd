@@ -2,22 +2,12 @@ extends Node2D
 
 const DEFAULT_PORT := 56419
 const FONT_SIZE_INCREASE := 3
-const QUIT_BUTTON_SIZE := 32.0
-const SHIP_OUTLINE_WIDTH := 3.0
 const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 const MAX_SHIPS := 6
-const PROJECTILE_SPEED := 260.0
-const PROJECTILE_MAX_TRAVEL := WORLD_BOUNDS.size.x * 0.25
-const PROJECTILE_RADIUS := 3.0
-const PROJECTILE_SPAWN_OFFSET := 20.0
-const PROJECTILE_RENDER_SIDES := 12
 const FIRE_INTERVAL_SECONDS := 0.16
 const SHIP_HIT_RADIUS := 18.0
 const DAMAGE_IMMUNITY_SECONDS := 2.0
 const IMMUNE_ACCELERATION_MULTIPLIER := 4.0
-const IMMUNITY_RING_WIDTH := 2.0
-const IMMUNITY_RING_RENDER_SIDES := 48
-const IMMUNITY_RING_EXTRA_PIXELS := 4.0
 
 const STATUS_NOT_CONNECTED := "Not connected"
 const STATUS_CONNECTING := "Connecting"
@@ -57,7 +47,9 @@ const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controll
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
 
-var ui: MainUi = MAIN_UI_SCRIPT.new()
+@onready var ui: MainUi = %MainUi
+@onready var world_node: Node2D = $World
+
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
 var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
@@ -65,7 +57,6 @@ var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
 var ship_slots: Array[Ship] = []
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
-var input_by_peer: Dictionary = {}
 var local_player_name: String = ""
 var local_preferred_color_index := -1
 var local_fire_cooldown := 0.0
@@ -156,24 +147,26 @@ func request_fire_projectile() -> void:
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	_initialize_ship_slots()
-	_hide_all_ships()
+	
+	if world_node == null:
+		world_node = Node2D.new()
+		world_node.name = "World"
+		add_child(world_node)
 
-	ui.build(
-		self,
-		DEFAULT_PORT,
-		FONT_SIZE_INCREASE,
-		QUIT_BUTTON_SIZE,
-		Callable(self, "_on_quit_pressed"),
-		Callable(self, "_on_host_pressed"),
-		Callable(self, "_on_join_pressed"),
-		Callable(self, "_on_disconnect_pressed"),
-		Callable(self, "_on_connect_pressed"),
-		Callable(self, "_on_player_name_changed"),
-		Callable(self, "_on_player_color_selected"),
-		PLAYER_COLORS,
-		Callable(self, "queue_redraw")
+	ship_owner_by_slot.resize(MAX_SHIPS)
+	ship_owner_by_slot.fill(-1)
+
+	ui.setup_ui(
+		_on_quit_pressed,
+		_on_host_pressed,
+		_on_join_pressed,
+		_on_disconnect_pressed,
+		_on_connect_pressed,
+		_on_player_name_changed,
+		_on_player_color_selected,
+		queue_redraw
 	)
+	ui.initialize_color_dropdown(PLAYER_COLORS)
 
 	connection_controller.configure(
 		multiplayer,
@@ -181,10 +174,10 @@ func _ready() -> void:
 		ui.join_button,
 		ui.disconnect_button,
 		ui.host_join_row,
-		Callable(self, "_set_status")
+		_set_status
 	)
 
-	ip_info.configure(self, Callable(self, "_on_ip_info_updated"))
+	ip_info.configure(self, _on_ip_info_updated)
 	ip_info.detect_local_ip()
 
 	multiplayer.connected_to_server.connect(_on_connected_to_server)
@@ -198,8 +191,6 @@ func _ready() -> void:
 	set_process(true)
 	_set_status(STATUS_NOT_CONNECTED)
 	_update_local_ip_labels()
-	if ui.player_name_input != null:
-		ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ip_info.request_external_ip()
 	_refresh_peer_list()
 	queue_redraw()
@@ -210,9 +201,8 @@ func _on_host_pressed() -> void:
 
 	_reset_session_scores()
 	_initialize_host_roster()
-	_start_host_ship_session()
+	_assign_peer_role(multiplayer.get_unique_id())
 	_refresh_peer_list()
-	_sync_ships_to_clients()
 	queue_redraw()
 
 func _on_join_pressed() -> void:
@@ -256,7 +246,6 @@ func _on_peer_connected(peer_id: int) -> void:
 	peer_roster.ensure_peer_in_order(peer_id)
 	_assign_peer_role(peer_id)
 	_broadcast_peer_roster()
-	_sync_ships_to_clients()
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -266,16 +255,15 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	peer_identity_by_id.erase(peer_id)
 	peer_score_by_id.erase(peer_id)
 	observer_queue.erase(peer_id)
-	input_by_peer.erase(peer_id)
 	damage_immunity_until_by_peer.erase(peer_id)
 
 	var slot_index: int = _get_slot_index_for_peer(peer_id)
 	if slot_index != -1:
-		_release_slot(slot_index)
+		_remove_ship_node(peer_id)
+		ship_owner_by_slot[slot_index] = -1
 		_promote_observer_to_slot(slot_index)
 
 	_broadcast_peer_roster()
-	_sync_ships_to_clients()
 
 func _on_disconnect_pressed() -> void:
 	_disconnect_local_peer(true)
@@ -288,15 +276,13 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	_refresh_peer_list()
 	_clear_ship_roles()
 	local_fire_cooldown = 0.0
-	_hide_all_ships()
 
 func _set_status(value: String) -> void:
 	ui.status_label.text = "Connection Status: %s" % value
 
 func _set_local_color_index(color_index: int) -> void:
 	local_preferred_color_index = color_index
-	if ui.player_color_dropdown != null:
-		ui.set_selected_color_index(color_index)
+	ui.set_selected_color_index(color_index)
 
 func _sync_local_color_from_roster() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -310,13 +296,8 @@ func _sync_local_color_from_roster() -> void:
 func _resolve_color_for_peer(peer_id: int, preferred_color_index: int) -> int:
 	return peer_roster.resolve_color_index(preferred_color_index, PLAYER_COLORS.size(), peer_id)
 
-func _get_ship_color_for_slot(slot_index: int) -> Color:
-	if slot_index < 0 or slot_index >= ship_owner_by_slot.size():
-		return Color.WHITE
-	var owner_id: int = ship_owner_by_slot[slot_index]
-	if owner_id == -1:
-		return Color.WHITE
-	var color_index: int = peer_roster.get_peer_color_index(owner_id)
+func _get_ship_color_for_peer(peer_id: int) -> Color:
+	var color_index: int = peer_roster.get_peer_color_index(peer_id)
 	if color_index < 0 or color_index >= PLAYER_COLORS.size():
 		return Color.WHITE
 	return PLAYER_COLORS[color_index]
@@ -371,10 +352,10 @@ func _refresh_peer_list() -> void:
 	var internal_ips: Array[String] = peer_roster.get_sync_internal_ips()
 	var external_ips: Array[String] = peer_roster.get_sync_external_ips()
 	var names: Array[String] = peer_roster.get_sync_names()
-	if ui.peer_list_container == null:
-		return
+	
 	for child in ui.peer_list_container.get_children():
 		child.queue_free()
+	
 	var total: int = mini(
 		peer_ids.size(),
 		mini(internal_ips.size(), mini(external_ips.size(), names.size()))
@@ -384,14 +365,14 @@ func _refresh_peer_list() -> void:
 
 	var local_id: int = multiplayer.get_unique_id()
 	var list_font_size: int = ui.peer_list_font_size
-	if list_font_size <= 0:
-		list_font_size = 16
+	
 	var index: int = 0
 	while index < total:
 		var peer_id: int = peer_ids[index]
 		var display_value: String = names[index].strip_edges()
 		if display_value.is_empty():
 			display_value = "%s/%s" % [internal_ips[index], external_ips[index]]
+		
 		var row := HBoxContainer.new()
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_theme_constant_override("separation", 8)
@@ -414,6 +395,7 @@ func _refresh_peer_list() -> void:
 		var color_index: int = peer_roster.get_peer_color_index(peer_id)
 		if color_index >= 0 and color_index < PLAYER_COLORS.size():
 			text_color = PLAYER_COLORS[color_index]
+		
 		var score_value: int = int(peer_score_by_id.get(peer_id, 0))
 		score_label.text = str(score_value)
 
@@ -497,11 +479,6 @@ func _on_player_color_selected(selected_index: int) -> void:
 	_submit_local_identity()
 	_refresh_peer_list()
 
-func _on_player_name_submitted(_value: String) -> void:
-	if ui.player_name_input == null:
-		return
-	ui.player_name_input.release_focus()
-
 func _on_quit_pressed() -> void:
 	get_tree().quit()
 
@@ -522,7 +499,8 @@ func _process(delta: float) -> void:
 
 	if local_fire_cooldown > 0.0:
 		local_fire_cooldown = maxf(0.0, local_fire_cooldown - delta)
-	_handle_local_continuous_fire()
+	
+	_handle_local_input()
 
 	if multiplayer.is_server():
 		_update_server_ships(delta)
@@ -531,7 +509,89 @@ func _process(delta: float) -> void:
 			queue_redraw()
 		return
 
-	_send_client_input_to_server()
+	if _is_typing_name():
+		return
+
+	# Handle continuous fire
+	if local_fire_cooldown <= 0.0 and Input.is_physical_key_pressed(KEY_SPACE):
+		local_fire_cooldown = FIRE_INTERVAL_SECONDS
+		local_ship.request_fire.rpc_id(1)
+
+	# Handle movement input
+	var turn_left := Input.is_physical_key_pressed(KEY_A)
+	var turn_right := Input.is_physical_key_pressed(KEY_D)
+	var accelerate := Input.is_physical_key_pressed(KEY_W)
+	var decelerate := Input.is_physical_key_pressed(KEY_S)
+	
+	local_ship.submit_input.rpc_id(1, turn_left, turn_right, accelerate, decelerate)
+
+	if Input.is_physical_key_pressed(KEY_X):
+		local_ship.request_full_stop.rpc_id(1)
+
+func _server_rule_checks(_delta: float) -> void:
+	# Update ship immunity status
+	for ship in _get_all_ships():
+		var owner_id = ship.get_multiplayer_authority()
+		ship.is_immune = _is_peer_damage_immune(owner_id)
+		ship.acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER if ship.is_immune else 1.0
+
+	# Projectile collision detection
+	var score_changed := false
+	for proj in _get_all_projectiles():
+		var hit_peer_id = _get_hit_ship_peer(proj.position, proj.shooter_peer_id)
+		if hit_peer_id != -1:
+			_reset_ship_for_peer(hit_peer_id)
+			score_changed = _award_point(proj.shooter_peer_id) or score_changed
+			proj.queue_free()
+
+	if score_changed:
+		_broadcast_peer_roster()
+
+func _get_hit_ship_peer(projectile_position: Vector2, shooter_peer_id: int) -> int:
+	for ship in _get_all_ships():
+		var owner_id = ship.get_multiplayer_authority()
+		if owner_id == -1 or owner_id == shooter_peer_id:
+			continue
+		if _is_peer_damage_immune(owner_id):
+			continue
+		if ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
+			return owner_id
+	return -1
+
+func _reset_ship_for_peer(peer_id: int) -> void:
+	var ship = _get_ship_node(peer_id)
+	if ship == null:
+		return
+	
+	var slot_index = _get_slot_index_for_peer(peer_id)
+	if slot_index != -1:
+		_set_damage_immunity_for_peer(peer_id)
+		ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
+
+func _get_all_ships() -> Array[Ship]:
+	var ships: Array[Ship] = []
+	for child in world_node.get_children():
+		if child is Ship:
+			ships.append(child)
+	return ships
+
+func _get_all_projectiles() -> Array[Projectile]:
+	var projectiles: Array[Projectile] = []
+	for child in world_node.get_children():
+		if child is Projectile:
+			projectiles.append(child)
+	return projectiles
+
+func _get_ship_node(peer_id: int) -> Ship:
+	for ship in _get_all_ships():
+		if ship.get_multiplayer_authority() == peer_id:
+			return ship
+	return null
+
+func _remove_ship_node(peer_id: int) -> void:
+	var ship = _get_ship_node(peer_id)
+	if ship != null:
+		ship.queue_free()
 
 func _start_connect_sequence(ip: String) -> void:
 	_stop_connect_sequence()
@@ -671,6 +731,7 @@ func _handle_local_continuous_fire() -> void:
 	request_fire_projectile.rpc_id(1)
 
 func _draw() -> void:
+	# main.gd only draws the black background of the play area
 	var play_rect: Rect2 = _get_play_render_rect()
 	draw_rect(play_rect, Color.BLACK, true)
 
@@ -721,32 +782,22 @@ func _hide_all_ships() -> void:
 
 func _clear_ship_roles() -> void:
 	observer_queue.clear()
-	input_by_peer.clear()
 	damage_immunity_until_by_peer.clear()
-
-	var index: int = 0
-	while index < MAX_SHIPS:
-		ship_owner_by_slot[index] = -1
-		ship_slots[index].hide()
-		index += 1
-
-func _start_host_ship_session() -> void:
-	_clear_ship_roles()
-	var host_id: int = multiplayer.get_unique_id()
-	_assign_peer_to_slot(host_id, 0)
-	_set_status(STATUS_HOSTING)
+	ship_owner_by_slot.fill(-1)
+	for child in world_node.get_children():
+		child.queue_free()
 
 func _assign_peer_role(peer_id: int) -> void:
 	var slot_index: int = _get_first_free_slot()
 	if slot_index == -1:
 		observer_queue.append(peer_id)
+		_update_local_status_for_peer(peer_id)
 		return
 
-	_assign_peer_to_slot(peer_id, slot_index)
+	_spawn_ship_for_peer(peer_id, slot_index)
 
-func _assign_peer_to_slot(peer_id: int, slot_index: int) -> void:
+func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	ship_owner_by_slot[slot_index] = peer_id
-	input_by_peer.erase(peer_id)
 	_set_damage_immunity_for_peer(peer_id)
 	
 	var ship: Ship = ship_slots[slot_index]
@@ -764,9 +815,7 @@ func _promote_observer_to_slot(slot_index: int) -> void:
 	while not observer_queue.is_empty():
 		var next_observer: int = observer_queue[0]
 		observer_queue.remove_at(0)
-		if next_observer == multiplayer.get_unique_id():
-			continue
-		_assign_peer_to_slot(next_observer, slot_index)
+		_spawn_ship_for_peer(next_observer, slot_index)
 		return
 
 func _get_first_free_slot() -> int:
@@ -890,13 +939,9 @@ func _update_local_connection_status_from_roles() -> void:
 	_set_status(STATUS_CONNECTED_TO_HOST)
 
 func _is_typing_name() -> bool:
-	if ui.player_name_input == null:
-		return false
 	return ui.player_name_input.has_focus()
 
 func _release_name_focus_if_clicked_outside(click_position: Vector2) -> void:
-	if ui.player_name_input == null:
-		return
 	if not ui.player_name_input.has_focus():
 		return
 
@@ -986,17 +1031,7 @@ func _is_peer_damage_immune(peer_id: int) -> bool:
 	if peer_id == -1:
 		return false
 	var immunity_until: float = float(damage_immunity_until_by_peer.get(peer_id, 0.0))
-	if immunity_until <= 0.0:
-		return false
 	return _get_server_time_seconds() < immunity_until
-
-func _get_peer_immunity_remaining_seconds(peer_id: int) -> float:
-	if peer_id == -1:
-		return 0.0
-	var immunity_until: float = float(damage_immunity_until_by_peer.get(peer_id, 0.0))
-	if immunity_until <= 0.0:
-		return 0.0
-	return maxf(0.0, immunity_until - _get_server_time_seconds())
 
 func _get_server_time_seconds() -> float:
 	return Time.get_ticks_msec() / 1000.0
