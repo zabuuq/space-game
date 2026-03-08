@@ -71,6 +71,14 @@
 *   **Networking:** Transition away from heavy, manual `@rpc` synchronization in `main.gd`; favor `MultiplayerSpawner` and `MultiplayerSynchronizer` nodes.
 *   **Aesthetics:** Retain manual `_draw()` calls for game entities.
 
+## Workflow & Documentation
+*   **Documentation:** Make sure to update the appropriate documentation when you make changes.
+*   **README:** Make sure `README.md` properly explains the program when changes are made.
+    *   You do not need to include a summary of the changes made; just make sure it still properly describes the game.
+    *   If `README.md` already properly describes the game, do not make any unnecessary changes to it.
+*   **Version Control:** Commit and push changes to the current branch in the repository unless you are on the `main` branch.
+    *   If you are on the `main` branch, create a new branch and switch to that before working.
+
 ## Key Files
 - `main.tscn`: The root scene.
 - `project.godot`: Project configuration and input map.
