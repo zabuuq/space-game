@@ -10,7 +10,6 @@ var velocity := Vector2.ZERO
 var distance_traveled := 0.0
 
 @export var shooter_peer_id := -1
-@export var slot_index := -1
 
 func _ready() -> void:
 	if not multiplayer.is_server():

@@ -1,9 +1,6 @@
 extends CanvasLayer
 class_name MainUi
 
-const APP_BACKGROUND_COLOR := Color(0.18, 0.18, 0.18, 1.0)
-const SECTION_SEPARATOR_COLOR := Color(0.30, 0.30, 0.30, 1.0)
-
 @onready var status_label: Label = %StatusLabel
 @onready var local_ip_label: Label = %LocalIpLabel
 @onready var external_ip_label: Label = %ExternalIpLabel

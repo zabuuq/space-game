@@ -1,7 +1,6 @@
 extends Node2D
 
 const DEFAULT_PORT := 56419
-const FONT_SIZE_INCREASE := 3
 const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 const MAX_SHIPS := 6
 const FIRE_INTERVAL_SECONDS := 0.16
