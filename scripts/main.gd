@@ -46,7 +46,7 @@ const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
 
 @onready var ui: MainUi = %MainUi
-@onready var world_node: Node2D = $World
+@onready var world_node: ColorRect = $World
 
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
@@ -73,8 +73,10 @@ func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	
 	if world_node == null:
-		world_node = Node2D.new()
+		world_node = ColorRect.new()
 		world_node.name = "World"
+		world_node.color = Color.BLACK
+		world_node.clip_contents = true
 		add_child(world_node)
 
 	ship_owner_by_slot.resize(MAX_SHIPS)
@@ -90,6 +92,7 @@ func _ready() -> void:
 		_on_player_color_selected,
 		queue_redraw
 	)
+	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ui.initialize_color_dropdown(PLAYER_COLORS)
 
 	connection_controller.configure(
@@ -353,6 +356,7 @@ func _submit_local_identity() -> void:
 		)
 		_bind_peer_score(host_id)
 		peer_roster.ensure_peer_in_order(host_id)
+		_update_ship_color(host_id)
 		_broadcast_peer_roster()
 	else:
 		submit_peer_info.rpc_id(
@@ -383,7 +387,15 @@ func submit_peer_info(
 		resolved_color_index
 	)
 	_bind_peer_score(sender_id)
+	_update_ship_color(sender_id)
 	_broadcast_peer_roster()
+
+func _update_ship_color(peer_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var ship := _get_ship_node(peer_id)
+	if ship != null:
+		ship.modulate = _get_ship_color_for_peer(peer_id)
 
 func _update_local_ip_labels() -> void:
 	ui.local_ip_label.text = ip_info.local_internal_ip
@@ -398,10 +410,14 @@ func _on_player_name_changed(value: String) -> void:
 	_submit_local_identity()
 	_refresh_peer_list()
 
+func _on_player_name_submitted(_value: String) -> void:
+	ui.player_name_input.release_focus()
+
 func _on_player_color_selected(selected_index: int) -> void:
 	_set_local_color_index(selected_index)
 	_submit_local_identity()
 	_refresh_peer_list()
+	ui.player_color_dropdown.release_focus()
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
@@ -416,6 +432,7 @@ func _process(delta: float) -> void:
 		var scale_x := play_rect.size.x / WORLD_BOUNDS.size.x
 		var scale_y := play_rect.size.y / WORLD_BOUNDS.size.y
 		world_node.scale = Vector2(scale_x, scale_y)
+		world_node.size = WORLD_BOUNDS.size
 
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -509,8 +526,9 @@ func _get_all_projectiles() -> Array[Projectile]:
 	return projectiles
 
 func _get_ship_node(peer_id: int) -> Ship:
+	var expected_name := "Ship_%d" % peer_id
 	for ship in _get_all_ships():
-		if ship.get_multiplayer_authority() == peer_id:
+		if ship.name == expected_name:
 			return ship
 	return null
 
@@ -601,11 +619,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		if mouse_event != null and mouse_event.pressed:
 			_release_name_focus_if_clicked_outside(mouse_event.position)
 
-func _draw() -> void:
-	# main.gd only draws the black background of the play area
-	var play_rect: Rect2 = _get_play_render_rect()
-	draw_rect(play_rect, Color.BLACK, true)
-
 func _get_right_section_rect() -> Rect2:
 	if ui.right_section == null:
 		return get_viewport_rect()
@@ -650,7 +663,7 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	var ship: Ship = SHIP_SCENE.instantiate()
 	ship.name = "Ship_%d" % peer_id
 	world_node.add_child(ship, true)
-	ship.set_multiplayer_authority(peer_id)
+	ship.set_multiplayer_authority(peer_id, false)
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 	ship.modulate = _get_ship_color_for_peer(peer_id)
 	ship.world_bounds = WORLD_BOUNDS

@@ -42,6 +42,10 @@ const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
 const PROJECTILE_SPEED := 260.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
 
+func _ready() -> void:
+	if has_node("MultiplayerSynchronizer"):
+		$MultiplayerSynchronizer.set_multiplayer_authority(1)
+
 func _physics_process(_delta: float) -> void:
 	if multiplayer.multiplayer_peer != null and multiplayer.is_server():
 		# Update movement based on input on server
@@ -56,6 +60,9 @@ func _physics_process(_delta: float) -> void:
 
 	# Wrap around logic (all clients should probably do this or rely on sync)
 	_wrap_to_bounds()
+
+func _process(_delta: float) -> void:
+	queue_redraw()
 
 @rpc("any_peer", "call_local", "unreliable")
 func submit_input(

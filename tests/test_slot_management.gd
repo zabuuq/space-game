@@ -5,7 +5,7 @@ var main_node
 
 func before_each():
 	main_node = Main.new()
-	main_node.world_node = Node2D.new()
+	main_node.world_node = ColorRect.new()
 	
 	main_node.ship_owner_by_slot.resize(main_node.MAX_SHIPS)
 	main_node.ship_owner_by_slot.fill(-1)

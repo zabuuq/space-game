@@ -9,7 +9,9 @@ script = ExtResource("1_3wnca")
 [node name="MainUi" parent="." instance=ExtResource("2_h2a3v")]
 unique_name_in_owner = true
 
-[node name="World" type="Node2D" parent="."]
+[node name="World" type="ColorRect" parent="."]
+clip_contents = true
+color = Color(0, 0, 0, 1)
 
 [node name="ShipSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://entities/ship/ship.tscn")
