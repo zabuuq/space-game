@@ -34,6 +34,12 @@ var turret_color := Color.WHITE :
 			turret_color = value
 			queue_redraw()
 
+var ship_color := Color.WHITE :
+	set(value):
+		if ship_color != value:
+			ship_color = value
+			queue_redraw()
+
 var turret_fire_cooldown := 0.0
 var _turret_input_left := false
 var _turret_input_right := false
@@ -147,7 +153,7 @@ func _spawn_projectile() -> void:
 	proj.position = _wrap_pos(spawn_pos)
 	proj.velocity = forward * PROJECTILE_SPEED
 	proj.shooter_peer_id = get_multiplayer_authority()
-	proj.modulate = modulate
+	proj.modulate = ship_color
 	proj.world_bounds = world_bounds
 	
 	get_parent().add_child(proj, true)
@@ -291,7 +297,7 @@ func _draw() -> void:
 		# Actually, since it's local space, it's easier to just draw.
 		# If the node is at (5,5), drawing at (0,0) + (1600,0) will draw at (1605,5).
 		draw_set_transform(offset.rotated(-rotation), 0, Vector2.ONE)
-		draw_polyline(SHIP_POINTS, modulate, SHIP_OUTLINE_WIDTH, true)
+		draw_polyline(SHIP_POINTS, ship_color, SHIP_OUTLINE_WIDTH, true)
 		
 		# Draw the turret if it is visible
 		if turret_visible:
@@ -308,7 +314,7 @@ func _draw() -> void:
 			draw_line(Vector2.ZERO, barrel_end, turret_color, TURRET_OUTLINE_WIDTH, true)
 		
 		if is_immune:
-			var ring_color := modulate
+			var ring_color := ship_color
 			ring_color.a = 0.95
 			draw_arc(Vector2.ZERO, SHIP_HIT_RADIUS + IMMUNITY_RING_EXTRA_PIXELS, 0.0, TAU, IMMUNITY_RING_RENDER_SIDES, ring_color, IMMUNITY_RING_WIDTH, true)
 	

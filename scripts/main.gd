@@ -575,7 +575,7 @@ func _update_ship_color(peer_id: int) -> void:
 		return
 	var ship := _get_ship_node(peer_id)
 	if ship != null:
-		ship.modulate = _get_ship_color_for_peer(peer_id)
+		ship.ship_color = _get_ship_color_for_peer(peer_id)
 		
 	if pilot_by_turret_operator_id.has(peer_id):
 		var pilot_id: int = pilot_by_turret_operator_id[peer_id]
@@ -882,7 +882,7 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	world_node.add_child(ship, true)
 	ship.set_multiplayer_authority(peer_id, false)
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
-	ship.modulate = _get_ship_color_for_peer(peer_id)
+	ship.ship_color = _get_ship_color_for_peer(peer_id)
 	ship.world_bounds = WORLD_BOUNDS
 	_update_local_status_for_peer(peer_id)
 
