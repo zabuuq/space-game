@@ -500,8 +500,24 @@ func _get_hit_ship(projectile_position: Vector2, shooter_peer_id: int, ships: Ar
 			continue
 		if _is_peer_damage_immune(owner_id):
 			continue
-		if ship.position.distance_to(projectile_position) <= SHIP_HIT_RADIUS:
-			return ship
+		
+		# Fast broad-phase check (15 is max ship radius + 1.5 projectile radius)
+		if ship.position.distance_to(projectile_position) <= 16.5:
+			var local_pos = (projectile_position - ship.position).rotated(-ship.rotation)
+			
+			# Inside the main polygon body
+			if Geometry2D.is_point_in_polygon(local_pos, ship.SHIP_POINTS):
+				return ship
+				
+			# Check near edges (accounts for line thickness and projectile radius)
+			var point_count = ship.SHIP_POINTS.size()
+			for i in range(point_count):
+				var p1 = ship.SHIP_POINTS[i]
+				var p2 = ship.SHIP_POINTS[(i + 1) % point_count]
+				var closest = Geometry2D.get_closest_point_to_segment(local_pos, p1, p2)
+				if local_pos.distance_to(closest) <= 3.0:
+					return ship
+					
 	return null
 
 func _reset_ship(ship: Ship, peer_id: int) -> void:
