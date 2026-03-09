@@ -59,6 +59,10 @@ var local_fire_cooldown := 0.0
 var score_by_identity: Dictionary = {}
 var peer_identity_by_id: Dictionary = {}
 var peer_score_by_id: Dictionary = {}
+var turret_operator_by_pilot_id: Dictionary = {}
+var pilot_by_turret_operator_id: Dictionary = {}
+var pending_team_join_request_pilot_id := 0
+var pending_team_leave_request := false
 var damage_immunity_until_by_peer: Dictionary = {}
 var is_connecting := false
 var connect_target_ip: String = ""
@@ -93,6 +97,7 @@ func _ready() -> void:
 	)
 	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ui.initialize_color_dropdown(PLAYER_COLORS)
+	ui.team_confirm_dialog.confirmed.connect(_on_team_confirm_dialog_confirmed)
 
 	connection_controller.configure(
 		multiplayer,
@@ -172,6 +177,7 @@ func _on_peer_connected(peer_id: int) -> void:
 	peer_roster.ensure_peer_in_order(peer_id)
 	_assign_peer_role(peer_id)
 	_broadcast_peer_roster()
+	_broadcast_team_roster()
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -182,6 +188,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	peer_score_by_id.erase(peer_id)
 	observer_queue.erase(peer_id)
 	damage_immunity_until_by_peer.erase(peer_id)
+
+	_server_handle_peer_leave_team(peer_id)
 
 	var slot_index: int = _get_slot_index_for_peer(peer_id)
 	if slot_index != -1:
@@ -199,6 +207,8 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
 	peer_score_by_id.clear()
+	turret_operator_by_pilot_id.clear()
+	pilot_by_turret_operator_id.clear()
 	_refresh_peer_list()
 	_clear_session_state()
 	local_fire_cooldown = 0.0
@@ -303,6 +313,39 @@ func _refresh_peer_list() -> void:
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_theme_constant_override("separation", 8)
 
+		var action_btn := Button.new()
+		action_btn.custom_minimum_size = Vector2(80, 0)
+		action_btn.add_theme_font_size_override("font_size", list_font_size)
+		action_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		
+		if peer_id == local_id:
+			action_btn.visible = false
+		else:
+			if turret_operator_by_pilot_id.has(local_id):
+				var my_op: int = turret_operator_by_pilot_id[local_id]
+				if peer_id == my_op:
+					action_btn.text = "Kick"
+					action_btn.pressed.connect(func(): _prompt_team_action(peer_id, "kick"))
+				else:
+					action_btn.text = "Locked"
+					action_btn.disabled = true
+			elif pilot_by_turret_operator_id.has(local_id):
+				var my_pilot: int = pilot_by_turret_operator_id[local_id]
+				if peer_id == my_pilot:
+					action_btn.text = "Leave"
+					action_btn.pressed.connect(func(): _prompt_team_action(peer_id, "leave"))
+				else:
+					action_btn.text = "Locked"
+					action_btn.disabled = true
+			else:
+				if turret_operator_by_pilot_id.has(peer_id) or pilot_by_turret_operator_id.has(peer_id):
+					action_btn.text = "Locked"
+					action_btn.disabled = true
+				else:
+					action_btn.text = "Join"
+					action_btn.pressed.connect(func(): _prompt_team_action(peer_id, "join"))
+		row.add_child(action_btn)
+
 		var left_label := Label.new()
 		left_label.text = display_value
 		left_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -337,6 +380,144 @@ func _refresh_peer_list() -> void:
 		row.add_child(score_label)
 		ui.peer_list_container.add_child(row)
 		index += 1
+
+func _prompt_team_action(peer_id: int, action: String) -> void:
+	if action == "join":
+		pending_team_join_request_pilot_id = peer_id
+		pending_team_leave_request = false
+		ui.team_confirm_dialog.dialog_text = "Are you sure you want to join this player's team?"
+	elif action == "leave":
+		pending_team_join_request_pilot_id = 0
+		pending_team_leave_request = true
+		ui.team_confirm_dialog.dialog_text = "Are you sure you want to leave the team?"
+	elif action == "kick":
+		pending_team_join_request_pilot_id = peer_id
+		pending_team_leave_request = false
+		ui.team_confirm_dialog.dialog_text = "Are you sure you want to kick this player from your team?"
+	ui.team_confirm_dialog.popup_centered()
+
+func _on_team_confirm_dialog_confirmed() -> void:
+	if pending_team_leave_request:
+		request_leave_team.rpc_id(1)
+	elif pending_team_join_request_pilot_id != 0:
+		var local_id := multiplayer.get_unique_id()
+		if turret_operator_by_pilot_id.has(local_id):
+			request_kick_teammate.rpc_id(1)
+		else:
+			request_join_team.rpc_id(1, pending_team_join_request_pilot_id)
+
+	pending_team_join_request_pilot_id = 0
+	pending_team_leave_request = false
+
+@rpc("any_peer", "call_local", "reliable")
+func request_join_team(pilot_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	
+	if pilot_id <= 0 or turret_operator_by_pilot_id.has(pilot_id):
+		return
+	
+	if turret_operator_by_pilot_id.has(sender_id) or pilot_by_turret_operator_id.has(sender_id):
+		return
+		
+	turret_operator_by_pilot_id[pilot_id] = sender_id
+	pilot_by_turret_operator_id[sender_id] = pilot_id
+	
+	# Remove operator's old ship and forfeit slot
+	var operator_slot_index: int = _get_slot_index_for_peer(sender_id)
+	if operator_slot_index != -1:
+		_remove_ship_node(sender_id)
+		ship_owner_by_slot[operator_slot_index] = -1
+		_promote_observer_to_slot(operator_slot_index)
+	elif observer_queue.has(sender_id):
+		observer_queue.erase(sender_id)
+		
+	_update_local_status_for_peer(sender_id)
+	
+	# Update pilot's ship
+	var pilot_ship := _get_ship_node(pilot_id)
+	if pilot_ship != null:
+		pilot_ship.turret_operator_id = sender_id
+		pilot_ship.turret_visible = true
+		pilot_ship.turret_color = _get_ship_color_for_peer(sender_id)
+		_set_damage_immunity_for_peer(pilot_id)
+		pilot_ship.is_immune = true
+	
+	_broadcast_team_roster()
+
+@rpc("any_peer", "call_local", "reliable")
+func request_leave_team() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	
+	if pilot_by_turret_operator_id.has(sender_id):
+		_server_handle_peer_leave_team(sender_id)
+		_broadcast_team_roster()
+
+@rpc("any_peer", "call_local", "reliable")
+func request_kick_teammate() -> void:
+	if not multiplayer.is_server():
+		return
+	var sender_id: int = multiplayer.get_remote_sender_id()
+	
+	if turret_operator_by_pilot_id.has(sender_id):
+		var operator_id: int = turret_operator_by_pilot_id[sender_id]
+		_server_handle_peer_leave_team(operator_id)
+		_broadcast_team_roster()
+
+func _server_handle_peer_leave_team(peer_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+		
+	var pilot_id: int = 0
+	var operator_id: int = 0
+	
+	if turret_operator_by_pilot_id.has(peer_id):
+		pilot_id = peer_id
+		operator_id = turret_operator_by_pilot_id[peer_id]
+	elif pilot_by_turret_operator_id.has(peer_id):
+		operator_id = peer_id
+		pilot_id = pilot_by_turret_operator_id[peer_id]
+	
+	if pilot_id != 0 and operator_id != 0:
+		turret_operator_by_pilot_id.erase(pilot_id)
+		pilot_by_turret_operator_id.erase(operator_id)
+		
+		# Reset pilot's ship
+		var pilot_ship := _get_ship_node(pilot_id)
+		if pilot_ship != null:
+			pilot_ship.turret_operator_id = 0
+			pilot_ship.turret_visible = false
+			_set_damage_immunity_for_peer(pilot_id)
+			pilot_ship.is_immune = true
+			
+		# Respawn operator or make observer
+		_assign_peer_role(operator_id)
+
+func _broadcast_team_roster() -> void:
+	if not multiplayer.is_server():
+		return
+	var pilots: Array[int] = []
+	var operators: Array[int] = []
+	
+	for pilot in turret_operator_by_pilot_id:
+		pilots.append(pilot)
+		operators.append(turret_operator_by_pilot_id[pilot])
+		
+	sync_team_roster.rpc(pilots, operators)
+
+@rpc("authority", "call_local", "reliable")
+func sync_team_roster(pilots: Array[int], operators: Array[int]) -> void:
+	turret_operator_by_pilot_id.clear()
+	pilot_by_turret_operator_id.clear()
+	
+	for i in range(mini(pilots.size(), operators.size())):
+		turret_operator_by_pilot_id[pilots[i]] = operators[i]
+		pilot_by_turret_operator_id[operators[i]] = pilots[i]
+		
+	_refresh_peer_list()
 
 func _submit_local_identity() -> void:
 	if multiplayer.multiplayer_peer == null:
@@ -447,28 +628,42 @@ func _process(delta: float) -> void:
 
 func _handle_local_input() -> void:
 	var local_id: int = multiplayer.get_unique_id()
-	var local_ship := _get_ship_node(local_id)
-	if local_ship == null:
-		return
-
+	
 	if _is_typing_name():
 		return
 
-	# Handle continuous fire
-	if local_fire_cooldown <= 0.0 and Input.is_physical_key_pressed(KEY_SPACE):
-		local_fire_cooldown = FIRE_INTERVAL_SECONDS
-		local_ship.request_fire.rpc_id(1)
+	# Handle input for any ship we are piloting
+	var local_ship := _get_ship_node(local_id)
+	if local_ship != null:
+		# Handle continuous ship fire
+		if local_fire_cooldown <= 0.0 and Input.is_physical_key_pressed(KEY_SPACE):
+			var interval := FIRE_INTERVAL_SECONDS
+			if local_ship.turret_operator_id != 0:
+				interval *= 2.0
+			local_fire_cooldown = interval
+			local_ship.request_fire.rpc_id(1)
 
-	# Handle movement input
-	var turn_left := Input.is_physical_key_pressed(KEY_A)
-	var turn_right := Input.is_physical_key_pressed(KEY_D)
-	var accelerate := Input.is_physical_key_pressed(KEY_W)
-	var decelerate := Input.is_physical_key_pressed(KEY_S)
-	
-	local_ship.submit_input.rpc_id(1, turn_left, turn_right, accelerate, decelerate)
+		# Handle ship movement input
+		var turn_left := Input.is_physical_key_pressed(KEY_A)
+		var turn_right := Input.is_physical_key_pressed(KEY_D)
+		var accelerate := Input.is_physical_key_pressed(KEY_W)
+		var decelerate := Input.is_physical_key_pressed(KEY_S)
+		
+		local_ship.submit_input.rpc_id(1, turn_left, turn_right, accelerate, decelerate)
 
-	if Input.is_physical_key_pressed(KEY_X):
-		local_ship.request_full_stop.rpc_id(1)
+		if Input.is_physical_key_pressed(KEY_X):
+			local_ship.request_full_stop.rpc_id(1)
+
+	# Handle input for any ship we are operating a turret on
+	var all_ships := _get_all_ships()
+	for ship in all_ships:
+		if ship.turret_operator_id == local_id:
+			var t_left := Input.is_physical_key_pressed(KEY_A)
+			var t_right := Input.is_physical_key_pressed(KEY_D)
+			ship.submit_turret_input.rpc_id(1, t_left, t_right)
+			
+			if Input.is_physical_key_pressed(KEY_SPACE):
+				ship.request_turret_fire.rpc_id(1)
 
 func _server_rule_checks(_delta: float) -> void:
 	var all_ships := _get_all_ships()
@@ -486,8 +681,9 @@ func _server_rule_checks(_delta: float) -> void:
 		var hit_ship = _get_hit_ship(proj.position, proj.shooter_peer_id, all_ships)
 		if hit_ship != null:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
+			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
 			_reset_ship(hit_ship, hit_peer_id)
-			score_changed = _award_point(proj.shooter_peer_id) or score_changed
+			score_changed = _award_point(proj.shooter_peer_id, points_to_award) or score_changed
 			proj.queue_free()
 
 	if score_changed:
@@ -775,7 +971,7 @@ func _bind_peer_score(peer_id: int) -> void:
 		score_by_identity[identity_key] = 0
 	peer_score_by_id[peer_id] = int(score_by_identity[identity_key])
 
-func _award_point(peer_id: int) -> bool:
+func _award_point(peer_id: int, points: int = 1) -> bool:
 	if peer_id == -1:
 		return false
 	var identity_key: String = str(peer_identity_by_id.get(peer_id, ""))
@@ -784,7 +980,7 @@ func _award_point(peer_id: int) -> bool:
 		identity_key = str(peer_identity_by_id.get(peer_id, ""))
 	if identity_key.is_empty():
 		return false
-	var next_score: int = int(score_by_identity.get(identity_key, 0)) + 1
+	var next_score: int = int(score_by_identity.get(identity_key, 0)) + points
 	score_by_identity[identity_key] = next_score
 	peer_score_by_id[peer_id] = next_score
 	return true

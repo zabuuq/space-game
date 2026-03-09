@@ -5,7 +5,10 @@ class_name Ship
 const MAX_SPEED := 200.0
 const SPEED_STEP := 28.0
 const ROTATION_SPEED := 2.8
+const TURRET_ROTATION_SPEED := 1.4
 const SHIP_OUTLINE_WIDTH := 3.0
+const TURRET_OUTLINE_WIDTH := 2.0
+const TURRET_FIRE_INTERVAL := 0.32
 
 ## Ship model points (Asteroids-style)
 const SHIP_POINTS: PackedVector2Array = [
@@ -15,6 +18,29 @@ const SHIP_POINTS: PackedVector2Array = [
 	Vector2(-9, 12),   # Left back "wing" point
 	Vector2(0, -12)    # Connect back to nose
 ]
+
+## Turret state
+var turret_rotation := 0.0
+var turret_operator_id := 0
+var turret_visible := false :
+	set(value):
+		if turret_visible != value:
+			turret_visible = value
+			queue_redraw()
+
+var turret_color := Color.WHITE :
+	set(value):
+		if turret_color != value:
+			turret_color = value
+			queue_redraw()
+
+var turret_fire_cooldown := 0.0
+var _turret_input_left := false
+var _turret_input_right := false
+
+const TURRET_RADIUS := 4.5
+const TURRET_BARREL_LENGTH := 14.0
+const TURRET_PROJECTILE_SPAWN_OFFSET := 18.0
 
 ## Game world bounds for wrapping logic
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
@@ -57,6 +83,18 @@ func _physics_process(_delta: float) -> void:
 			_input_decelerate,
 			acceleration_multiplier
 		)
+		
+		# Handle turret movement on server
+		var turret_rotate_input := 0.0
+		if _turret_input_left:
+			turret_rotate_input -= 1.0
+		if _turret_input_right:
+			turret_rotate_input += 1.0
+		turret_rotation += turret_rotate_input * TURRET_ROTATION_SPEED * _delta
+		
+		# Handle turret fire cooldown
+		if turret_fire_cooldown > 0.0:
+			turret_fire_cooldown = maxf(0.0, turret_fire_cooldown - _delta)
 
 	# Wrap around logic (all clients should probably do this or rely on sync)
 	_wrap_to_bounds()
@@ -114,6 +152,44 @@ func _spawn_projectile() -> void:
 	
 	get_parent().add_child(proj, true)
 
+@rpc("any_peer", "call_local", "unreliable")
+func submit_turret_input(
+	turn_left: bool,
+	turn_right: bool
+) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != turret_operator_id:
+		return
+
+	_turret_input_left = turn_left
+	_turret_input_right = turn_right
+
+@rpc("any_peer", "call_local", "unreliable")
+func request_turret_fire() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != turret_operator_id:
+		return
+	
+	if turret_fire_cooldown <= 0.0:
+		turret_fire_cooldown = TURRET_FIRE_INTERVAL
+		_spawn_turret_projectile()
+
+func _spawn_turret_projectile() -> void:
+	var forward := Vector2.UP.rotated(turret_rotation)
+	var proj = PROJECTILE_SCENE.instantiate()
+	var spawn_pos = position + (forward * TURRET_PROJECTILE_SPAWN_OFFSET)
+	
+	proj.position = _wrap_pos(spawn_pos)
+	proj.velocity = forward * PROJECTILE_SPEED
+	# Use operator ID if present, otherwise default to ship authority for testing
+	proj.shooter_peer_id = turret_operator_id if turret_operator_id != 0 else get_multiplayer_authority()
+	proj.modulate = turret_color
+	proj.world_bounds = world_bounds
+	
+	get_parent().add_child(proj, true)
+
 func _wrap_pos(pos: Vector2) -> Vector2:
 	var wrapped := pos
 	if wrapped.x < world_bounds.position.x: wrapped.x = world_bounds.end.x
@@ -132,17 +208,24 @@ func update_movement(
 ) -> void:
 	acceleration_multiplier = multiplier
 	
+	var active_accel_multiplier := acceleration_multiplier
+	var active_rot_speed := ROTATION_SPEED
+	
+	if turret_operator_id != 0:
+		active_accel_multiplier *= 0.25
+		active_rot_speed *= 0.5
+	
 	# Handle rotation
 	var rotate_input := 0.0
 	if turn_left:
 		rotate_input -= 1.0
 	if turn_right:
 		rotate_input += 1.0
-	rotation += rotate_input * ROTATION_SPEED * delta
+	rotation += rotate_input * active_rot_speed * delta
 	
 	# Handle speed
 	if accelerate:
-		current_speed = clampf(current_speed + (SPEED_STEP * acceleration_multiplier * delta), 0.0, MAX_SPEED)
+		current_speed = clampf(current_speed + (SPEED_STEP * active_accel_multiplier * delta), 0.0, MAX_SPEED)
 	if decelerate:
 		current_speed = clampf(current_speed - (SPEED_STEP * delta), 0.0, MAX_SPEED)
 	
@@ -209,6 +292,20 @@ func _draw() -> void:
 		# If the node is at (5,5), drawing at (0,0) + (1600,0) will draw at (1605,5).
 		draw_set_transform(offset.rotated(-rotation), 0, Vector2.ONE)
 		draw_polyline(SHIP_POINTS, modulate, SHIP_OUTLINE_WIDTH, true)
+		
+		# Draw the turret if it is visible
+		if turret_visible:
+			# Turret rotation is absolute (screen-relative).
+			# Since draw() is already rotated by the ship's rotation, 
+			# we subtract the ship's rotation to get back to screen-relative 0,
+			# then add the turret's rotation.
+			var draw_turret_rot := turret_rotation - rotation
+			
+			# Draw turret base (circle)
+			draw_arc(Vector2.ZERO, TURRET_RADIUS, 0, TAU, 16, turret_color, TURRET_OUTLINE_WIDTH, true)
+			# Draw turret barrel (line)
+			var barrel_end := Vector2.UP.rotated(draw_turret_rot) * TURRET_BARREL_LENGTH
+			draw_line(Vector2.ZERO, barrel_end, turret_color, TURRET_OUTLINE_WIDTH, true)
 		
 		if is_immune:
 			var ring_color := modulate

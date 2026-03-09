@@ -154,16 +154,16 @@ layout_mode = 2
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
 
-[node name="InstructionsHeading" type="RichTextLabel" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+[node name="ShipControlsHeading" type="RichTextLabel" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
 layout_mode = 2
 theme_override_font_sizes/normal_font_size = 19
 bbcode_enabled = true
-text = "[b]Instructions[/b]"
+text = "[b]Ship Controls[/b]"
 fit_content = true
 scroll_active = false
 selection_enabled = false
 
-[node name="Instructions" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+[node name="ShipControls" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 19
 text = "W - Increase Speed
@@ -171,6 +171,27 @@ S - Decrease Speed
 A - Turn Counter-Clockwise
 D - Turn Clockwise
 X - Full Stop
+Space - Fire Projectile"
+autowrap_mode = 3
+
+[node name="SpacerTurret" type="Control" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="TurretControlsHeading" type="RichTextLabel" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/normal_font_size = 19
+bbcode_enabled = true
+text = "[b]Turret Controls[/b]"
+fit_content = true
+scroll_active = false
+selection_enabled = false
+
+[node name="TurretControls" type="Label" parent="RootRow/LeftSection/LeftMargin/LeftVBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 19
+text = "A - Turn Counter-Clockwise
+D - Turn Clockwise
 Space - Fire Projectile"
 autowrap_mode = 3
 
@@ -249,3 +270,9 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 19
 text = "Connect"
+
+[node name="TeamConfirmDialog" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+initial_position = 2
+size = Vector2i(300, 100)
+dialog_text = "Are you sure you want to join this team?"
