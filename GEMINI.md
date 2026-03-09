@@ -5,12 +5,14 @@
 
 *   **Project Name:** Mini Space Battle (Godot 4.6)
 *   **Core Logic:** GDScript-based, server-authoritative multiplayer.
-*   **UI Strategy:** Programmatic construction via `main_ui.gd` (minimal use of Editor Scenes for UI).
+*   **Visual Aesthetic:** Minimalist 8-bit style using manual `_draw()` calls for ships and projectiles.
+*   **UI Strategy:** Godot Editor native UI (`Control` nodes) for maximum layout performance and ease of maintenance.
+*   **Networking Strategy:** Native Godot 4 Multiplayer nodes (`MultiplayerSpawner`, `MultiplayerSynchronizer`) preferred over manual RPC state synchronization.
 
 ## Technical Mandates
 *   **Language:** Use GDScript exclusively. Exhaustive type-hinting is **mandatory** for all functions, variables, and signals.
 *   **Naming Conventions:**
-    *   **Files/Folders:** `snake_case` (e.g., `ship_navigation.gd`).
+    *   **Files/Folders:** `snake_case` (e.g., `ship.tscn`, `ship.gd`).
     *   **Classes:** `PascalCase` (e.g., `ShipNavigation`).
     *   **Functions/Variables:** `snake_case` (e.g., `update_thrust()`).
 *   **Node References:** Use `@onready` with unique node names (`%UniqueName`) or typed variables. Avoid deep paths like `$A/B/C`.
@@ -23,24 +25,26 @@
     *   `/assets/`: General assets (images, sounds, etc.).
     *   `/demos/`: Compiled executables and packages for testing.
     *   `/scenes/`: Main game scenes.
-    *   `/scripts/`: Core logic, networking controllers, and service classes (typically `RefCounted`).
-    *   `/entities/`: Reusable character/object scenes and their specific scripts/components.
+    *   `/scripts/`: Core logic, networking controllers, and service classes.
+    *   `/entities/`: Reusable character/object scenes (`.tscn`) and their specific scripts/components.
     *   `res://`: Root contains the main scene (`main.tscn`) and project configuration (`project.godot`).
 
 *   **Core Logic & Services**:
-    - **`main.gd`**: The central orchestrator. Manages the game loop, physics synchronization via RPCs, custom rendering of the play area, and game rules (scoring, immunity, wrap-around).
+    - **`main.gd`**: The central orchestrator. Manages the game loop, game rules (scoring, immunity, wrap-around).
     - **`connection_controller.gd`**: Handles the low-level ENet peer creation for hosting and joining.
-    - **`main_ui.gd`**: Programmatically constructs the game's UI, including the control panel, player roster, and connection popups.
+    - **`main_ui.tscn` / `main_ui.gd`**: The game's UI, including the control panel, player roster, and connection popups.
     - **`peer_roster_service.gd`**: Manages player identities, color assignments, and synchronization of the player list.
     - **`ip_info_service.gd`**: Fetches local and external IP addresses for connection sharing.
-    - **`ship_navigation.gd`**: Encapsulates ship movement logic, including thrust, rotation, and screen-wrapping.
+    - **`ship.gd`**: The ship entity, extending `CharacterBody2D` (or similar node), utilizing `_draw()` for its visual representation to maintain the 8-bit aesthetic.
 
-*   **Manual Rendering**: Game entities in the "Play Area" are rendered via `_draw()` calls in `main.gd` for coordinate wrapping/clipping.
+*   **Manual Rendering for Aesthetic**: To maintain the old-school 8-bit feel, game entities like Ships and Projectiles must be visually rendered using `_draw()` overrides on their respective nodes. Do not use Sprite2D nodes unless strictly necessary for performance.
+
+*   **Entity Nodes**: Entities like ships should be real Godot Nodes (e.g., `CharacterBody2D`) instantiated into the Scene Tree to leverage Godot's built-in physics (if needed), transform hierarchies, and the high-level multiplayer API.
 
 ## Specific Components
-*   **`ShipNavigation`**: Physics and movement logic.
+*   **`Ship`**: The main ship node/scene (`entities/ship/ship.tscn`).
 *   **`PeerRosterService`**: Identity and color management.
-*   **`MainUi`**: Runtime UI generation.
+*   **`MainUi`**: UI layout and logic.
 
 ## Development & Testing
 *   **Main Scene:** `res://main.tscn`
@@ -51,18 +55,35 @@
     3. **To Host:** Click "Host". By default, it listens on port `56419`.
     4. **To Join:** Click "Join", enter the host's IP address (use `127.0.0.1` for local testing), and click "Connect".
 *   **Multiplayer Testing:** Run multiple instances locally; use `127.0.0.1` for the join IP.
-*   **Performance:** Favor signals for state changes; avoid polling in `_process` unless necessary for physics/rendering.
+*   **Automated Testing & Continuous Integration (CI):** 
+    *   The project uses the **GUT (Godot Unit Test)** framework. All tests must be placed in the `/tests/` directory and prefixed with `test_` (e.g., `test_peer_roster_service.gd`).
+    *   **Mandatory Execution:** Developers and AI agents MUST execute the full test suite locally before staging or committing any code changes. Code that breaks existing tests is invalid.
+    *   **Test Coverage:** When adding or modifying pure data structures, math functions, or isolated logic (like scoring or array manipulation), you MUST create or update the corresponding GUT unit tests to cover the new behavior.
+    *   **Running the Suite:** Run the entire test suite headlessly via the command line to simulate the CI environment:
+        `godot --headless -s res://addons/gut/gut_cmdln.gd -gdir=res://tests`
+    *   Alternatively, execute the `test_runner.tscn` scene within the Godot editor.
+*   **Performance:** Favor signals for state changes; avoid polling in `_process` unless necessary for physics/rendering. Use `MultiplayerSynchronizer` to efficiently sync node states.
 
 ## Boundaries
 *   Do not introduce C# or GDExtension.
 *   Do not add external plugins/addons without explicit instruction.
-*   Follow the "Programmatic UI" pattern established in `main_ui.gd` when adding new interface elements.
+*   **UI:** Transition away from programmatic UI; rely on the Godot Editor to build standard `Control` layouts.
+*   **Networking:** Transition away from heavy, manual `@rpc` synchronization in `main.gd`; favor `MultiplayerSpawner` and `MultiplayerSynchronizer` nodes.
+*   **Aesthetics:** Retain manual `_draw()` calls for game entities.
+
+## Workflow & Documentation
+*   **Documentation:** Make sure to update the appropriate documentation when you make changes.
+*   **README:** Make sure `README.md` properly explains the program when changes are made.
+    *   You do not need to include a summary of the changes made; just make sure it still properly describes the game.
+    *   If `README.md` already properly describes the game, do not make any unnecessary changes to it.
+*   **Version Control:** Commit and push changes to the current branch in the repository unless you are on the `main` branch.
+    *   If you are on the `main` branch, create a new branch and switch to that before working.
 
 ## Key Files
 - `main.tscn`: The root scene.
 - `project.godot`: Project configuration and input map.
-- `scripts/main.gd`: Game logic and networking hub.
-- `scripts/ship_navigation.gd`: Ship physics and movement.
-- `scripts/main_ui.gd`: UI construction logic.
+- `scripts/main.gd`: Game logic orchestrator.
+- `entities/ship/ship.tscn`: Ship entity scene.
+- `scenes/main_ui.tscn`: Main UI scene.
 - `scripts/peer_roster_service.gd`: Player management.
 - `scripts/connection_controller.gd`: Network connection handling.

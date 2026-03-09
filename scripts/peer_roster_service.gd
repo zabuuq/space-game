@@ -130,22 +130,6 @@ func resolve_color_index(preferred_color_index: int, max_colors: int, ignore_pee
 			return preferred_color_index
 	return find_first_available_color(max_colors, ignore_peer_id)
 
-func format_bbcode() -> String:
-	if peer_order.is_empty():
-		return ""
-
-	var lines: PackedStringArray = []
-	for index in range(peer_order.size()):
-		var peer_id := peer_order[index]
-		var info: Dictionary = _get_peer_info(peer_id)
-		var line := "%s/%s" % [str(info["internal"]), str(info["external"])]
-		if index == 0:
-			lines.append("[b]%s[/b]" % line)
-		else:
-			lines.append(line)
-
-	return "\n".join(lines)
-
 func _get_peer_info(peer_id: int) -> Dictionary:
 	if peer_info_by_id.has(peer_id):
 		return peer_info_by_id[peer_id]

@@ -10,16 +10,16 @@ var set_status: Callable
 
 func configure(
 	multiplayer_api: MultiplayerAPI,
-	host: Button,
-	join: Button,
-	disconnect: Button,
+	host_btn: Button,
+	join_btn: Button,
+	disconnect_btn: Button,
 	host_join: HBoxContainer,
 	set_status_callback: Callable
 ) -> void:
 	multiplayer = multiplayer_api
-	host_button = host
-	join_button = join
-	disconnect_button = disconnect
+	host_button = host_btn
+	join_button = join_btn
+	disconnect_button = disconnect_btn
 	host_join_row = host_join
 	set_status = set_status_callback
 
@@ -54,6 +54,6 @@ func disconnect_session(update_status: bool) -> void:
 
 	set_connected_controls(false)
 
-func set_connected_controls(is_connected: bool) -> void:
-	host_join_row.visible = not is_connected
-	disconnect_button.visible = is_connected
+func set_connected_controls(connected: bool) -> void:
+	host_join_row.visible = not connected
+	disconnect_button.visible = connected
