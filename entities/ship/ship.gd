@@ -307,10 +307,16 @@ func _draw() -> void:
 			# then add the turret's rotation.
 			var draw_turret_rot := turret_rotation - rotation
 			
+			var barrel_end := Vector2.UP.rotated(draw_turret_rot) * TURRET_BARREL_LENGTH
+			
+			# Draw black outlines first (slightly thicker or offset to show)
+			# For 1px outline on a line, we can draw a slightly thicker black line behind it
+			draw_line(Vector2.ZERO, barrel_end, Color.BLACK, TURRET_OUTLINE_WIDTH + 2.0, true)
+			draw_circle(Vector2.ZERO, TURRET_RADIUS + 1.0, Color.BLACK)
+
 			# Draw turret base (filled circle)
 			draw_circle(Vector2.ZERO, TURRET_RADIUS, turret_color)
 			# Draw turret barrel (line)
-			var barrel_end := Vector2.UP.rotated(draw_turret_rot) * TURRET_BARREL_LENGTH
 			draw_line(Vector2.ZERO, barrel_end, turret_color, TURRET_OUTLINE_WIDTH, true)
 		
 		if is_immune:
