@@ -576,6 +576,12 @@ func _update_ship_color(peer_id: int) -> void:
 	var ship := _get_ship_node(peer_id)
 	if ship != null:
 		ship.modulate = _get_ship_color_for_peer(peer_id)
+		
+	if pilot_by_turret_operator_id.has(peer_id):
+		var pilot_id: int = pilot_by_turret_operator_id[peer_id]
+		var pilot_ship := _get_ship_node(pilot_id)
+		if pilot_ship != null:
+			pilot_ship.turret_color = _get_ship_color_for_peer(peer_id)
 
 func _update_local_ip_labels() -> void:
 	ui.local_ip_label.text = ip_info.local_internal_ip
