@@ -6,7 +6,7 @@ const MAX_SPEED := 200.0
 const SPEED_STEP := 28.0
 const ROTATION_SPEED := 2.8
 const TURRET_ROTATION_SPEED := 1.4
-const SHIP_OUTLINE_WIDTH := 3.0
+const SHIP_OUTLINE_WIDTH := 2.0
 const TURRET_OUTLINE_WIDTH := 2.0
 const TURRET_FIRE_INTERVAL := 0.32
 
@@ -67,7 +67,7 @@ var _input_decelerate := false
 
 const IMMUNITY_RING_WIDTH := 2.0
 const IMMUNITY_RING_RENDER_SIDES := 48
-const SHIP_HIT_RADIUS := 9.0
+const SHIP_HIT_RADIUS := 8.0
 const IMMUNITY_RING_EXTRA_PIXELS := 13.0
 
 const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
@@ -307,8 +307,8 @@ func _draw() -> void:
 			# then add the turret's rotation.
 			var draw_turret_rot := turret_rotation - rotation
 			
-			# Draw turret base (circle)
-			draw_arc(Vector2.ZERO, TURRET_RADIUS, 0, TAU, 16, turret_color, TURRET_OUTLINE_WIDTH, true)
+			# Draw turret base (filled circle)
+			draw_circle(Vector2.ZERO, TURRET_RADIUS, turret_color)
 			# Draw turret barrel (line)
 			var barrel_end := Vector2.UP.rotated(draw_turret_rot) * TURRET_BARREL_LENGTH
 			draw_line(Vector2.ZERO, barrel_end, turret_color, TURRET_OUTLINE_WIDTH, true)
