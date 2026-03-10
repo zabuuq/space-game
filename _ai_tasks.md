@@ -28,14 +28,7 @@
 - [x] 24. Implemented Roster UI and Team State Management
 - [x] 25. Phase 4: Gameplay Integration for Pilot/Operator effects
 - [x] 26. Phase 5: Scoring and Respawning Updates for Teams
-
-- [ ] 27. Observer Options
-  - When an empty slot opens up, the first observer in the list should be given a pop-up option to have a ship.
-    - The pop-up should ask the player if they want to operate a ship and have a ten-second countdown.
-    - If they do not answer after ten seconds or if they choose no, they should drop to the end of the observer list.
-    - If they choose yes, they should be given a ship and spawn at that ship's default location.
-  - If all observers decline to operate a ship, all observers should see an [Empty Ship] with a "Join" button. Joining will be, first come, first serve at that point.
-    - If someone takes the last available empty slot, by either joining the game or clicking the "Join" button on the empty slot, that option should go away for all observers and the logic should revert to the pop-up when a new empty slot opens.
+- [x] 27. Observer Options
 
 ## Notes
 
