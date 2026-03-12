@@ -23,7 +23,13 @@
 - [x] 19. Remove Unnecessary queue_redraw() Calls from ship and projectile process loops.
 - [x] 20. Clean Up Dead Code by deleting the unused apply_network_state() function from ship.gd.
 - [x] 21. Halve initial rendering size of ships/projectiles.
+- [x] 22. Renamed Instructions to Ship Controls and added Turret Controls section.
+- [x] 23. Implemented visual Turret on the Ship, absolute rotation logic, and firing mechanics.
+- [x] 24. Implemented Roster UI and Team State Management
+- [x] 25. Phase 4: Gameplay Integration for Pilot/Operator effects
+- [x] 26. Phase 5: Scoring and Respawning Updates for Teams
+- [x] 27. Observer Options
 
 ## Notes
 
-- When you mark a task as finished, update it to a one line summary and group it with the finished tasks.
+- When you mark a task as finished, update it to a one line summary and group it with the finished tasks. Do not separate the finished tasks with any new line spaces. Place the newly finished task on the next line after the group of finished tasks.

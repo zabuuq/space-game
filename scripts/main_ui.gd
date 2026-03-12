@@ -16,6 +16,7 @@ class_name MainUi
 @onready var right_section: ColorRect = %RightSection
 @onready var quit_button: Button = %QuitButton
 @onready var connect_button: Button = %ConnectButton
+@onready var team_confirm_dialog: ConfirmationDialog = %TeamConfirmDialog
 
 var peer_list_font_size := 16
 var _color_option_icons: Array = []
