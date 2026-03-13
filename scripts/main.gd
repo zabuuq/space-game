@@ -46,6 +46,7 @@ const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.g
 
 @onready var ui: MainUi = %MainUi
 @onready var world_node: ColorRect = $World
+var world_root: Node2D
 
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
@@ -93,10 +94,20 @@ func _ready() -> void:
 		world_node.color = Color.BLACK
 		world_node.clip_contents = true
 		add_child(world_node)
+		
+	if world_root == null:
+		world_root = Node2D.new()
+		world_root.name = "WorldRoot"
+		world_node.add_child(world_root)
+		
+		# Update spawners to point to the new root
+		for child in get_children():
+			if child is MultiplayerSpawner:
+				child.spawn_path = child.get_path_to(world_root)
 
 	starfield = preload("res://scripts/starfield.gd").new()
 	starfield.name = "Starfield"
-	world_node.add_child(starfield)
+	world_root.add_child(starfield)
 
 	ship_owner_by_slot.resize(MAX_SHIPS)
 	ship_owner_by_slot.fill(-1)
@@ -225,7 +236,7 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION)
 		
 	if starfield != null:
-		starfield.generate_stars(world_bounds)
+		starfield.generate_stars(world_bounds, edge_wrapping)
 		
 	# Also update existing ships/projectiles bounds
 	for ship in _get_all_ships():
@@ -728,17 +739,23 @@ func _process(delta: float) -> void:
 	# Update World transform to fit the play area
 	if world_node != null:
 		var play_rect := _get_play_render_rect()
+		world_node.position = play_rect.position
 		var scale_x := play_rect.size.x / BASE_RESOLUTION.x
 		var scale_y := play_rect.size.y / BASE_RESOLUTION.y
 		world_node.scale = Vector2(scale_x, scale_y)
-		world_node.size = world_bounds.size
 		
 		if current_play_area_size == 1: # Large
+			world_node.size = BASE_RESOLUTION
 			var target_pos := _get_camera_target_position()
-			var center_screen := play_rect.position + play_rect.size * 0.5
-			world_node.position = center_screen - target_pos * Vector2(scale_x, scale_y)
+			
+			# Wrap the target position
+			target_pos.x = wrapf(target_pos.x, 0.0, world_bounds.size.x)
+			target_pos.y = wrapf(target_pos.y, 0.0, world_bounds.size.y)
+			
+			world_root.position = (BASE_RESOLUTION * 0.5) - target_pos
 		else:
-			world_node.position = play_rect.position
+			world_node.size = world_bounds.size
+			world_root.position = Vector2.ZERO
 
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -864,14 +881,14 @@ func _reset_ship(ship: Ship, peer_id: int) -> void:
 
 func _get_all_ships() -> Array[Ship]:
 	var ships: Array[Ship] = []
-	for child in world_node.get_children():
+	for child in world_root.get_children():
 		if child is Ship:
 			ships.append(child)
 	return ships
 
 func _get_all_projectiles() -> Array[Projectile]:
 	var projectiles: Array[Projectile] = []
-	for child in world_node.get_children():
+	for child in world_root.get_children():
 		if child is Projectile:
 			projectiles.append(child)
 	return projectiles
@@ -1015,8 +1032,9 @@ func _clear_session_state() -> void:
 	observer_queue.clear()
 	damage_immunity_until_by_peer.clear()
 	ship_owner_by_slot.fill(-1)
-	for child in world_node.get_children():
-		child.queue_free()
+	for child in world_root.get_children():
+		if child != starfield:
+			child.queue_free()
 
 func _assign_peer_role(peer_id: int) -> void:
 	var slot_index: int = _get_first_free_slot()
@@ -1033,7 +1051,7 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	
 	var ship: Ship = SHIP_SCENE.instantiate()
 	ship.name = "Ship_%d" % peer_id
-	world_node.add_child(ship, true)
+	world_root.add_child(ship, true)
 	ship.set_multiplayer_authority(peer_id, false)
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 	ship.ship_color = _get_ship_color_for_peer(peer_id)

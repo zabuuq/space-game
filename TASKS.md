@@ -2,7 +2,6 @@
 
 ## To Do
 
-- [ ] 32. Implement true seamless visual wrapping by drawing duplicates of players/objects on the opposite edges when approaching boundaries.
 - [ ] 33. Create off-screen pointer UI icons for other players. Pointers should live on the screen edge, point to off-screen ships, and match the corresponding team/ship color.
 
 ## In Progress
@@ -40,6 +39,7 @@
 - [x] 29. Implement Camera2D logic to center on the player's ship (or the operator's attached ship) when using the Large play area.
 - [x] 30. Implement edge wrapping logic updates based on toggle.
 - [x] 31. Add scattered starfield background.
+- [x] 32. Implement seamless visual wrapping by drawing duplicates of players/objects on opposite edges.
 
 ## Notes
 
