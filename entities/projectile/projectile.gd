@@ -6,6 +6,7 @@ const PROJECTILE_RADIUS := 1.5
 const PROJECTILE_RENDER_SIDES := 12
 
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
+var edge_wrapping := true
 var velocity := Vector2.ZERO
 var distance_traveled := 0.0
 
@@ -18,37 +19,52 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
-		
+
 	position += velocity * delta
 	distance_traveled += velocity.length() * delta
-	
+
 	if distance_traveled >= PROJECTILE_MAX_TRAVEL:
 		queue_free()
 		return
-		
+
 	_wrap_to_bounds()
 
 func _wrap_to_bounds() -> void:
 	var pos := position
 	var wrap_triggered := false
-	
+
 	if pos.x < world_bounds.position.x:
-		pos.x += world_bounds.size.x
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.x += world_bounds.size.x
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
 	elif pos.x > world_bounds.end.x:
-		pos.x -= world_bounds.size.x
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.x -= world_bounds.size.x
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
+
 	if pos.y < world_bounds.position.y:
-		pos.y += world_bounds.size.y
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.y += world_bounds.size.y
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
 	elif pos.y > world_bounds.end.y:
-		pos.y -= world_bounds.size.y
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.y -= world_bounds.size.y
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
+
 	if wrap_triggered:
 		position = pos
-
 func _draw() -> void:
 	var offsets := [
 		Vector2.ZERO,

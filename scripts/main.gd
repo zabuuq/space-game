@@ -82,6 +82,7 @@ var slot_offer_local_timer: float = 0.0
 var current_play_area_size: int = 0
 var current_edge_wrapping: bool = true
 var world_bounds := Rect2(Vector2.ZERO, BASE_RESOLUTION)
+var starfield: Node2D
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -92,6 +93,10 @@ func _ready() -> void:
 		world_node.color = Color.BLACK
 		world_node.clip_contents = true
 		add_child(world_node)
+
+	starfield = preload("res://scripts/starfield.gd").new()
+	starfield.name = "Starfield"
+	world_node.add_child(starfield)
 
 	ship_owner_by_slot.resize(MAX_SHIPS)
 	ship_owner_by_slot.fill(-1)
@@ -219,11 +224,16 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 	else:
 		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION)
 		
+	if starfield != null:
+		starfield.generate_stars(world_bounds)
+		
 	# Also update existing ships/projectiles bounds
 	for ship in _get_all_ships():
 		ship.world_bounds = world_bounds
+		ship.edge_wrapping = edge_wrapping
 	for proj in _get_all_projectiles():
 		proj.world_bounds = world_bounds
+		proj.edge_wrapping = edge_wrapping
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -1028,6 +1038,7 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 	ship.ship_color = _get_ship_color_for_peer(peer_id)
 	ship.world_bounds = world_bounds
+	ship.edge_wrapping = current_edge_wrapping
 	_update_local_status_for_peer(peer_id)
 
 func _promote_observer_to_slot(_slot_index: int) -> void:
