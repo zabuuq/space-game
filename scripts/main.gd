@@ -84,6 +84,7 @@ var current_play_area_size: int = 0
 var current_edge_wrapping: bool = true
 var world_bounds := Rect2(Vector2.ZERO, BASE_RESOLUTION)
 var starfield: Node2D
+var off_screen_pointers: Control
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -108,6 +109,11 @@ func _ready() -> void:
 	starfield = preload("res://scripts/starfield.gd").new()
 	starfield.name = "Starfield"
 	world_root.add_child(starfield)
+	
+	off_screen_pointers = preload("res://scripts/off_screen_pointers.gd").new()
+	off_screen_pointers.name = "OffScreenPointers"
+	off_screen_pointers.main_node = self
+	add_child(off_screen_pointers)
 
 	ship_owner_by_slot.resize(MAX_SHIPS)
 	ship_owner_by_slot.fill(-1)

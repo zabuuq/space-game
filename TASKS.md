@@ -2,8 +2,6 @@
 
 ## To Do
 
-- [ ] 33. Create off-screen pointer UI icons for other players. Pointers should live on the screen edge, point to off-screen ships, and match the corresponding team/ship color.
-
 ## In Progress
 
 ## Done
@@ -40,6 +38,7 @@
 - [x] 30. Implement edge wrapping logic updates based on toggle.
 - [x] 31. Add scattered starfield background.
 - [x] 32. Implement seamless visual wrapping by drawing duplicates of players/objects on opposite edges.
+- [x] 33. Create off-screen pointer UI icons for other players matching team colors.
 
 ## Notes
 
