@@ -79,6 +79,9 @@ var open_join_state: bool = false
 var slot_offer_dialog: ConfirmationDialog
 var slot_offer_local_timer: float = 0.0
 
+var current_play_area_size: int = 0
+var current_edge_wrapping: bool = true
+
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	
@@ -100,7 +103,8 @@ func _ready() -> void:
 		_on_connect_pressed,
 		_on_player_name_changed,
 		_on_player_color_selected,
-		queue_redraw
+		queue_redraw,
+		_on_host_confirmed
 	)
 	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ui.initialize_color_dropdown(PLAYER_COLORS)
@@ -144,6 +148,13 @@ func _ready() -> void:
 	queue_redraw()
 
 func _on_host_pressed() -> void:
+	ui.host_popup.popup_centered()
+
+func _on_host_confirmed() -> void:
+	var settings = ui.get_host_settings()
+	current_play_area_size = settings.play_area_size
+	current_edge_wrapping = settings.edge_wrapping
+	
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
@@ -191,359 +202,16 @@ func _on_peer_connected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
 
+	sync_game_settings.rpc_id(peer_id, current_play_area_size, current_edge_wrapping)
 	peer_roster.ensure_peer_in_order(peer_id)
 	_assign_peer_role(peer_id)
 	_broadcast_peer_roster()
 	_broadcast_team_roster()
-
-func _on_peer_disconnected(peer_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-
-	peer_roster.remove_peer(peer_id)
-	peer_identity_by_id.erase(peer_id)
-	peer_score_by_id.erase(peer_id)
-	observer_queue.erase(peer_id)
-	damage_immunity_until_by_peer.erase(peer_id)
-
-	_server_handle_peer_leave_team(peer_id)
-
-	var slot_index: int = _get_slot_index_for_peer(peer_id)
-	if slot_index != -1:
-		_remove_ship_node(peer_id)
-		ship_owner_by_slot[slot_index] = -1
-		_promote_observer_to_slot(slot_index)
-
-	_broadcast_peer_roster()
-
-func _on_disconnect_pressed() -> void:
-	_disconnect_local_peer(true)
-
-func _disconnect_local_peer(update_status: bool) -> void:
-	_stop_connect_sequence()
-	connection_controller.disconnect_session(update_status)
-	peer_roster.clear()
-	peer_score_by_id.clear()
-	turret_operator_by_pilot_id.clear()
-	pilot_by_turret_operator_id.clear()
-	_refresh_peer_list()
-	_clear_session_state()
-	local_fire_cooldown = 0.0
-
-func _set_status(value: String) -> void:
-	ui.status_label.text = "Connection Status: %s" % value
-
-func _set_local_color_index(color_index: int) -> void:
-	local_preferred_color_index = color_index
-	ui.set_selected_color_index(color_index)
-
-func _sync_local_color_from_roster() -> void:
-	if multiplayer.multiplayer_peer == null:
-		return
-	var local_id: int = multiplayer.get_unique_id()
-	var synced_color_index: int = peer_roster.get_peer_color_index(local_id)
-	if synced_color_index == -1:
-		return
-	_set_local_color_index(synced_color_index)
-
-func _resolve_color_for_peer(peer_id: int, preferred_color_index: int) -> int:
-	return peer_roster.resolve_color_index(preferred_color_index, PLAYER_COLORS.size(), peer_id)
-
-func _get_ship_color_for_peer(peer_id: int) -> Color:
-	var color_index: int = peer_roster.get_peer_color_index(peer_id)
-	if color_index < 0 or color_index >= PLAYER_COLORS.size():
-		return Color.WHITE
-	return PLAYER_COLORS[color_index]
-
-func _initialize_host_roster() -> void:
-	var host_id: int = multiplayer.get_unique_id()
-	var resolved_color_index := _resolve_color_for_peer(host_id, local_preferred_color_index)
-	_set_local_color_index(resolved_color_index)
-	peer_roster.register_host(
-		host_id,
-		ip_info.local_internal_ip,
-		ip_info.local_external_ip,
-		local_player_name,
-		resolved_color_index
-	)
-	_bind_peer_score(host_id)
-	_broadcast_peer_roster()
-
-func _broadcast_peer_roster() -> void:
-	if not multiplayer.is_server():
-		return
-
-	var peer_ids: Array[int] = peer_roster.get_sync_peer_ids()
-	sync_peer_roster.rpc(
-		peer_ids,
-		peer_roster.get_sync_internal_ips(),
-		peer_roster.get_sync_external_ips(),
-		peer_roster.get_sync_names(),
-		peer_roster.get_sync_color_indices(),
-		_get_sync_scores(peer_ids)
-	)
 
 @rpc("authority", "call_local", "reliable")
-func sync_peer_roster(
-	peer_ids: Array[int],
-	internal_ips: Array[String],
-	external_ips: Array[String],
-	names: Array[String],
-	color_indices: Array[int],
-	scores: Array[int]
-) -> void:
-	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names, color_indices)
-	peer_score_by_id.clear()
-	var score_total: int = mini(peer_ids.size(), scores.size())
-	for index in range(score_total):
-		peer_score_by_id[peer_ids[index]] = int(scores[index])
-	_sync_local_color_from_roster()
-	_refresh_peer_list()
-
-func _refresh_peer_list() -> void:
-	var peer_ids: Array[int] = peer_roster.get_sync_peer_ids()
-	var internal_ips: Array[String] = peer_roster.get_sync_internal_ips()
-	var external_ips: Array[String] = peer_roster.get_sync_external_ips()
-	var names: Array[String] = peer_roster.get_sync_names()
-	
-	for child in ui.peer_list_container.get_children():
-		child.queue_free()
-	
-	var total: int = mini(
-		peer_ids.size(),
-		mini(internal_ips.size(), mini(external_ips.size(), names.size()))
-	)
-	if total <= 0:
-		return
-
-	var local_id: int = multiplayer.get_unique_id()
-	var list_font_size: int = ui.peer_list_font_size
-	
-	var index: int = 0
-	while index < total:
-		var peer_id: int = peer_ids[index]
-		var display_value: String = names[index].strip_edges()
-		if display_value.is_empty():
-			display_value = "%s/%s" % [internal_ips[index], external_ips[index]]
-		
-		var row := HBoxContainer.new()
-		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		row.add_theme_constant_override("separation", 8)
-
-		var action_btn := Button.new()
-		action_btn.custom_minimum_size = Vector2(80, 0)
-		action_btn.add_theme_font_size_override("font_size", list_font_size)
-		action_btn.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		
-		if peer_id == local_id:
-			action_btn.visible = false
-		else:
-			if turret_operator_by_pilot_id.has(local_id):
-				var my_op: int = turret_operator_by_pilot_id[local_id]
-				if peer_id == my_op:
-					action_btn.text = "Kick"
-					action_btn.pressed.connect(func(): _prompt_team_action(peer_id, "kick"))
-				else:
-					action_btn.text = "Locked"
-					action_btn.disabled = true
-			elif pilot_by_turret_operator_id.has(local_id):
-extends Node2D
-
-const DEFAULT_PORT := 56419
-const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
-const MAX_SHIPS := 6
-const FIRE_INTERVAL_SECONDS := 0.16
-const SHIP_HIT_RADIUS := 8.0
-const DAMAGE_IMMUNITY_SECONDS := 2.0
-const IMMUNE_ACCELERATION_MULTIPLIER := 4.0
-
-const STATUS_NOT_CONNECTED := "Not connected"
-const STATUS_CONNECTING := "Connecting"
-const STATUS_FAILED_TO_CONNECT := "Failed to Connect"
-const STATUS_HOSTING := "Hosting"
-const STATUS_CONNECTED_TO_HOST := "Connected to host"
-const STATUS_OBSERVER := "Observer"
-const MAX_CONNECT_ATTEMPTS := 3
-const CONNECTING_DOT_STEP_SECONDS := 0.25
-const CONNECT_RETRY_DELAY_SECONDS := 0.35
-const DEFAULT_PEER_TEXT_COLOR := "ffffff"
-const PLAYER_COLORS: Array[Color] = [
-	Color(0.93, 0.93, 0.93), # white
-	Color(0.97, 0.33, 0.33), # red
-	Color(0.20, 0.63, 0.98), # blue
-	Color(0.30, 0.84, 0.39), # green
-	Color(1.00, 0.79, 0.27), # amber
-	Color(0.84, 0.44, 0.96), # violet
-	Color(0.29, 0.90, 0.88), # cyan
-	Color(1.00, 0.58, 0.24), # orange
-	Color(0.98, 0.31, 0.67)  # pink
-]
-
-const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
-	Vector2(1.0 / 6.0, 1.0 / 4.0),
-	Vector2(5.0 / 6.0, 1.0 / 4.0),
-	Vector2(5.0 / 6.0, 3.0 / 4.0),
-	Vector2(1.0 / 6.0, 3.0 / 4.0),
-	Vector2(3.0 / 6.0, 1.0 / 4.0),
-	Vector2(3.0 / 6.0, 3.0 / 4.0)
-]
-
-const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
-const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
-const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
-const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
-
-@onready var ui: MainUi = %MainUi
-@onready var world_node: ColorRect = $World
-
-var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
-var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
-var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
-
-var ship_owner_by_slot: Array[int] = []
-var observer_queue: Array[int] = []
-var local_player_name: String = ""
-var local_preferred_color_index := -1
-var local_fire_cooldown := 0.0
-var score_by_identity: Dictionary = {}
-var peer_identity_by_id: Dictionary = {}
-var peer_score_by_id: Dictionary = {}
-var turret_operator_by_pilot_id: Dictionary = {}
-var pilot_by_turret_operator_id: Dictionary = {}
-var pending_team_join_request_pilot_id := 0
-var pending_team_leave_request := false
-var damage_immunity_until_by_peer: Dictionary = {}
-var is_connecting := false
-var connect_target_ip: String = ""
-var connect_attempt_count := 0
-var connect_retry_pending := false
-var connect_retry_timer := 0.0
-var connecting_dot_count := 0
-var connecting_dot_timer := 0.0
-
-var offering_slot_to_peer: int = 0
-var offering_slot_timer: float = 0.0
-var observers_who_declined_current_offer: Array[int] = []
-var open_join_state: bool = false
-var slot_offer_dialog: ConfirmationDialog
-var slot_offer_local_timer: float = 0.0
-
-func _ready() -> void:
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-	
-	if world_node == null:
-		world_node = ColorRect.new()
-		world_node.name = "World"
-		world_node.color = Color.BLACK
-		world_node.clip_contents = true
-		add_child(world_node)
-
-	ship_owner_by_slot.resize(MAX_SHIPS)
-	ship_owner_by_slot.fill(-1)
-
-	ui.setup_ui(
-		_on_quit_pressed,
-		_on_host_pressed,
-		_on_join_pressed,
-		_on_disconnect_pressed,
-		_on_connect_pressed,
-		_on_player_name_changed,
-		_on_player_color_selected,
-		queue_redraw
-	)
-	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
-	ui.initialize_color_dropdown(PLAYER_COLORS)
-	ui.team_confirm_dialog.confirmed.connect(_on_team_confirm_dialog_confirmed)
-
-	slot_offer_dialog = ConfirmationDialog.new()
-	slot_offer_dialog.title = "Ship Available"
-	slot_offer_dialog.dialog_text = "A ship is available! Do you want to operate it?\nTime remaining: 10"
-	slot_offer_dialog.ok_button_text = "Yes"
-	slot_offer_dialog.cancel_button_text = "No"
-	slot_offer_dialog.confirmed.connect(_on_slot_offer_accepted_locally)
-	slot_offer_dialog.canceled.connect(_on_slot_offer_declined_locally)
-	slot_offer_dialog.close_requested.connect(_on_slot_offer_declined_locally)
-	ui.add_child(slot_offer_dialog)
-
-	connection_controller.configure(
-		multiplayer,
-		ui.host_button,
-		ui.join_button,
-		ui.disconnect_button,
-		ui.host_join_row,
-		_set_status
-	)
-
-	ip_info.configure(self, _on_ip_info_updated)
-	ip_info.detect_local_ip()
-
-	multiplayer.connected_to_server.connect(_on_connected_to_server)
-	multiplayer.connection_failed.connect(_on_connection_failed)
-	multiplayer.server_disconnected.connect(_on_server_disconnected)
-	multiplayer.peer_connected.connect(_on_peer_connected)
-	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-	get_viewport().size_changed.connect(queue_redraw)
-
-	set_process_unhandled_input(true)
-	set_process(true)
-	_set_status(STATUS_NOT_CONNECTED)
-	_update_local_ip_labels()
-	ip_info.request_external_ip()
-	_refresh_peer_list()
-	queue_redraw()
-
-func _on_host_pressed() -> void:
-	if not connection_controller.host(DEFAULT_PORT):
-		return
-
-	_reset_session_scores()
-	_initialize_host_roster()
-	_assign_peer_role(multiplayer.get_unique_id())
-	_refresh_peer_list()
-	queue_redraw()
-
-func _on_join_pressed() -> void:
-	ui.join_popup.popup_centered()
-
-func _on_connect_pressed() -> void:
-	ui.join_popup.hide()
-	var ip: String = ui.join_ip_input.text.strip_edges()
-	if ip.is_empty():
-		_set_status(STATUS_NOT_CONNECTED)
-		return
-
-	_start_connect_sequence(ip)
-
-func _on_connected_to_server() -> void:
-	_stop_connect_sequence()
-	connection_controller.set_connected_controls(true)
-	_set_status(STATUS_CONNECTED_TO_HOST)
-	_submit_local_identity()
-
-func _on_connection_failed() -> void:
-	if is_connecting:
-		_handle_connect_attempt_failure()
-		return
-
-	_set_status(STATUS_FAILED_TO_CONNECT)
-	_disconnect_local_peer(false)
-
-func _on_server_disconnected() -> void:
-	if is_connecting:
-		_handle_connect_attempt_failure()
-		return
-
-	_set_status(STATUS_NOT_CONNECTED)
-	_disconnect_local_peer(false)
-
-func _on_peer_connected(peer_id: int) -> void:
-	if not multiplayer.is_server():
-		return
-
-	peer_roster.ensure_peer_in_order(peer_id)
-	_assign_peer_role(peer_id)
-	_broadcast_peer_roster()
-	_broadcast_team_roster()
+func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
+	current_play_area_size = play_area_size
+	current_edge_wrapping = edge_wrapping
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():

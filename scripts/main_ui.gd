@@ -12,6 +12,9 @@ class_name MainUi
 @onready var disconnect_button: Button = %DisconnectButton
 @onready var host_join_row: HBoxContainer = %HostJoinRow
 @onready var join_popup: Window = %JoinPopup
+@onready var host_popup: ConfirmationDialog = %HostPopup
+@onready var play_area_size_option: OptionButton = %PlayAreaSizeOption
+@onready var edge_wrap_check: CheckButton = %EdgeWrapCheck
 @onready var join_ip_input: LineEdit = %JoinIpInput
 @onready var right_section: ColorRect = %RightSection
 @onready var quit_button: Button = %QuitButton
@@ -28,6 +31,7 @@ func _ready() -> void:
 	
 	# Initial signal connections for UI-internal logic if any
 	join_popup.close_requested.connect(join_popup.hide)
+	host_popup.close_requested.connect(host_popup.hide)
 
 func setup_ui(
 	on_quit_pressed: Callable,
@@ -37,16 +41,24 @@ func setup_ui(
 	on_connect_pressed: Callable,
 	on_name_changed: Callable,
 	on_color_selected: Callable,
-	on_right_section_resized: Callable
+	on_right_section_resized: Callable,
+	on_host_confirmed: Callable
 ) -> void:
 	quit_button.pressed.connect(on_quit_pressed)
 	host_button.pressed.connect(on_host_pressed)
 	join_button.pressed.connect(on_join_pressed)
 	disconnect_button.pressed.connect(on_disconnect_pressed)
 	connect_button.pressed.connect(on_connect_pressed)
+	host_popup.confirmed.connect(on_host_confirmed)
 	player_name_input.text_changed.connect(on_name_changed)
 	player_color_dropdown.item_selected.connect(on_color_selected)
 	right_section.resized.connect(on_right_section_resized)
+
+func get_host_settings() -> Dictionary:
+	return {
+		"play_area_size": play_area_size_option.selected,
+		"edge_wrapping": edge_wrap_check.button_pressed
+	}
 
 func initialize_color_dropdown(ship_colors: Array) -> void:
 	player_color_dropdown.clear()

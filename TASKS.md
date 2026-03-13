@@ -1,8 +1,6 @@
 # Task List
 
-## To Do
-
-- [ ] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
+- [x] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
 - [ ] 29. Implement Camera2D logic to center on the player's ship (or the operator's attached ship) when using the Large play area.
 - [ ] 30. Implement edge wrapping logic updates based on the toggle (ships stop at edges taking no damage, projectiles disappear when wrapping is off).
 - [ ] 31. Add a scattered starfield background (gray dots) to provide a frame of reference when moving.
@@ -14,6 +12,10 @@
 ## Done
 
 - [x] 1. Default the window to full screen.
+...
+- [x] 27. Observer Options
+- [x] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
+
 - [x] 2. Remove IP/port fields, default port to 56419, add connect popup.
 - [x] 3. Consolidate host/join to a single disconnect button.
 - [x] 4. Add quit button.
