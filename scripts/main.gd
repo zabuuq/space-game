@@ -1,7 +1,7 @@
 extends Node2D
 
 const DEFAULT_PORT := 56419
-const WORLD_BOUNDS := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
+const BASE_RESOLUTION := Vector2(1600.0, 900.0)
 const MAX_SHIPS := 6
 const FIRE_INTERVAL_SECONDS := 0.16
 const SHIP_HIT_RADIUS := 8.0
@@ -81,6 +81,7 @@ var slot_offer_local_timer: float = 0.0
 
 var current_play_area_size: int = 0
 var current_edge_wrapping: bool = true
+var world_bounds := Rect2(Vector2.ZERO, BASE_RESOLUTION)
 
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
@@ -154,6 +155,7 @@ func _on_host_confirmed() -> void:
 	var settings = ui.get_host_settings()
 	current_play_area_size = settings.play_area_size
 	current_edge_wrapping = settings.edge_wrapping
+	sync_game_settings(current_play_area_size, current_edge_wrapping)
 	
 	if not connection_controller.host(DEFAULT_PORT):
 		return
@@ -212,6 +214,16 @@ func _on_peer_connected(peer_id: int) -> void:
 func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 	current_play_area_size = play_area_size
 	current_edge_wrapping = edge_wrapping
+	if play_area_size == 1:
+		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION * 3.0)
+	else:
+		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION)
+		
+	# Also update existing ships/projectiles bounds
+	for ship in _get_all_ships():
+		ship.world_bounds = world_bounds
+	for proj in _get_all_projectiles():
+		proj.world_bounds = world_bounds
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -706,11 +718,17 @@ func _process(delta: float) -> void:
 	# Update World transform to fit the play area
 	if world_node != null:
 		var play_rect := _get_play_render_rect()
-		world_node.position = play_rect.position
-		var scale_x := play_rect.size.x / WORLD_BOUNDS.size.x
-		var scale_y := play_rect.size.y / WORLD_BOUNDS.size.y
+		var scale_x := play_rect.size.x / BASE_RESOLUTION.x
+		var scale_y := play_rect.size.y / BASE_RESOLUTION.y
 		world_node.scale = Vector2(scale_x, scale_y)
-		world_node.size = WORLD_BOUNDS.size
+		world_node.size = world_bounds.size
+		
+		if current_play_area_size == 1: # Large
+			var target_pos := _get_camera_target_position()
+			var center_screen := play_rect.position + play_rect.size * 0.5
+			world_node.position = center_screen - target_pos * Vector2(scale_x, scale_y)
+		else:
+			world_node.position = play_rect.position
 
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -947,12 +965,32 @@ func _get_right_section_rect() -> Rect2:
 		return get_viewport_rect()
 	return ui.right_section.get_global_rect()
 
+func _get_camera_target_position() -> Vector2:
+	if multiplayer.multiplayer_peer == null:
+		return world_bounds.size * 0.5
+	var local_id := multiplayer.get_unique_id()
+	
+	# Check if pilot
+	var local_ship := _get_ship_node(local_id)
+	if local_ship != null:
+		return local_ship.position
+		
+	# Check if operator
+	if pilot_by_turret_operator_id.has(local_id):
+		var pilot_id: int = pilot_by_turret_operator_id[local_id]
+		var pilot_ship := _get_ship_node(pilot_id)
+		if pilot_ship != null:
+			return pilot_ship.position
+			
+	# Fallback to center of world
+	return world_bounds.size * 0.5
+
 func _get_play_render_rect() -> Rect2:
 	var container: Rect2 = _get_right_section_rect()
 	if container.size.x <= 0.0 or container.size.y <= 0.0:
 		return container
 
-	var world_aspect: float = WORLD_BOUNDS.size.x / WORLD_BOUNDS.size.y
+	var world_aspect: float = BASE_RESOLUTION.x / BASE_RESOLUTION.y
 	var container_aspect: float = container.size.x / container.size.y
 	var fitted_size := container.size
 	if container_aspect > world_aspect:
@@ -989,7 +1027,7 @@ func _spawn_ship_for_peer(peer_id: int, slot_index: int) -> void:
 	ship.set_multiplayer_authority(peer_id, false)
 	ship.reset(_to_world_position(SHIP_START_NORMALIZED_POSITIONS[slot_index]))
 	ship.ship_color = _get_ship_color_for_peer(peer_id)
-	ship.world_bounds = WORLD_BOUNDS
+	ship.world_bounds = world_bounds
 	_update_local_status_for_peer(peer_id)
 
 func _promote_observer_to_slot(_slot_index: int) -> void:
@@ -1123,9 +1161,9 @@ func _release_name_focus_if_clicked_outside(click_position: Vector2) -> void:
 	ui.player_name_input.release_focus()
 
 func _to_world_position(normalized_position: Vector2) -> Vector2:
-	return WORLD_BOUNDS.position + Vector2(
-		normalized_position.x * WORLD_BOUNDS.size.x,
-		normalized_position.y * WORLD_BOUNDS.size.y
+	return world_bounds.position + Vector2(
+		normalized_position.x * world_bounds.size.x,
+		normalized_position.y * world_bounds.size.y
 	)
 
 func _set_damage_immunity_for_peer(peer_id: int) -> void:

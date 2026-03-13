@@ -1,6 +1,6 @@
 # Task List
 
-- [ ] 29. Implement Camera2D logic to center on the player's ship (or the operator's attached ship) when using the Large play area.
+- [x] 29. Implement Camera2D logic to center on the player's ship (or the operator's attached ship) when using the Large play area.
 - [ ] 30. Implement edge wrapping logic updates based on the toggle (ships stop at edges taking no damage, projectiles disappear when wrapping is off).
 - [ ] 31. Add a scattered starfield background (gray dots) to provide a frame of reference when moving.
 - [ ] 32. Implement true seamless visual wrapping by drawing duplicates of players/objects on the opposite edges when approaching boundaries.
