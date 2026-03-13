@@ -1,6 +1,5 @@
 # Task List
 
-- [x] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
 - [ ] 29. Implement Camera2D logic to center on the player's ship (or the operator's attached ship) when using the Large play area.
 - [ ] 30. Implement edge wrapping logic updates based on the toggle (ships stop at edges taking no damage, projectiles disappear when wrapping is off).
 - [ ] 31. Add a scattered starfield background (gray dots) to provide a frame of reference when moving.
@@ -12,10 +11,6 @@
 ## Done
 
 - [x] 1. Default the window to full screen.
-...
-- [x] 27. Observer Options
-- [x] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
-
 - [x] 2. Remove IP/port fields, default port to 56419, add connect popup.
 - [x] 3. Consolidate host/join to a single disconnect button.
 - [x] 4. Add quit button.
@@ -42,7 +37,8 @@
 - [x] 25. Phase 4: Gameplay Integration for Pilot/Operator effects
 - [x] 26. Phase 5: Scoring and Respawning Updates for Teams
 - [x] 27. Observer Options
+- [x] 28. Add a settings popup when hosting to choose play area size (Small vs Large) and an edge wrap toggle.
 
 ## Notes
 
-- When you mark a task as finished, update it to a one line summary and group it with the finished tasks. Do not separate the finished tasks with any new line spaces. Place the newly finished task on the next line after the group of finished tasks.
+- When you mark a task as finished, update it to a one line summary and add it to the end of the `## Done` list.
