@@ -50,6 +50,7 @@ const TURRET_PROJECTILE_SPAWN_OFFSET := 18.0
 
 ## Game world bounds for wrapping logic
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
+var edge_wrapping := true
 
 ## Movement state
 var current_speed := 0.0
@@ -77,6 +78,11 @@ const PROJECTILE_SPAWN_OFFSET := 20.0
 func _ready() -> void:
 	if has_node("MultiplayerSynchronizer"):
 		$MultiplayerSynchronizer.set_multiplayer_authority(1)
+		
+	var main_node = get_tree().current_scene
+	if main_node != null and "world_bounds" in main_node:
+		world_bounds = main_node.world_bounds
+		edge_wrapping = main_node.current_edge_wrapping
 
 func _physics_process(_delta: float) -> void:
 	if multiplayer.multiplayer_peer != null and multiplayer.is_server():
@@ -155,9 +161,9 @@ func _spawn_projectile() -> void:
 	proj.shooter_peer_id = get_multiplayer_authority()
 	proj.modulate = ship_color
 	proj.world_bounds = world_bounds
-	
-	get_parent().add_child(proj, true)
+	proj.edge_wrapping = edge_wrapping
 
+	get_parent().add_child(proj, true)
 @rpc("any_peer", "call_local", "unreliable")
 func submit_turret_input(
 	turn_left: bool,
@@ -193,10 +199,12 @@ func _spawn_turret_projectile() -> void:
 	proj.shooter_peer_id = turret_operator_id if turret_operator_id != 0 else get_multiplayer_authority()
 	proj.modulate = turret_color
 	proj.world_bounds = world_bounds
-	
-	get_parent().add_child(proj, true)
+	proj.edge_wrapping = edge_wrapping
 
+	get_parent().add_child(proj, true)
 func _wrap_pos(pos: Vector2) -> Vector2:
+	if not edge_wrapping:
+		return pos
 	var wrapped := pos
 	if wrapped.x < world_bounds.position.x: wrapped.x = world_bounds.end.x
 	elif wrapped.x > world_bounds.end.x: wrapped.x = world_bounds.position.x
@@ -257,40 +265,60 @@ func full_stop() -> void:
 func _wrap_to_bounds() -> void:
 	var pos := position
 	var wrap_triggered := false
-	
+
 	if pos.x < world_bounds.position.x:
-		pos.x += world_bounds.size.x
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.x += world_bounds.size.x
+			wrap_triggered = true
+		else:
+			pos.x = world_bounds.position.x
+			full_stop()
+			wrap_triggered = true
 	elif pos.x > world_bounds.end.x:
-		pos.x -= world_bounds.size.x
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.x -= world_bounds.size.x
+			wrap_triggered = true
+		else:
+			pos.x = world_bounds.end.x
+			full_stop()
+			wrap_triggered = true
+
 	if pos.y < world_bounds.position.y:
-		pos.y += world_bounds.size.y
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.y += world_bounds.size.y
+			wrap_triggered = true
+		else:
+			pos.y = world_bounds.position.y
+			full_stop()
+			wrap_triggered = true
 	elif pos.y > world_bounds.end.y:
-		pos.y -= world_bounds.size.y
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.y -= world_bounds.size.y
+			wrap_triggered = true
+		else:
+			pos.y = world_bounds.end.y
+			full_stop()
+			wrap_triggered = true
+
 	if wrap_triggered:
 		position = pos
-
 func _draw() -> void:
 	# Draw the ship using manual polyline for the 8-bit feel
 	# To support "wrapping" visuals, we draw multiple copies if near an edge.
 	# The points are in local space, so (0,0) is our center.
 	
-	var offsets := [
-		Vector2.ZERO,
-		Vector2(world_bounds.size.x, 0),
-		Vector2(-world_bounds.size.x, 0),
-		Vector2(0, world_bounds.size.y),
-		Vector2(0, -world_bounds.size.y),
-		Vector2(world_bounds.size.x, world_bounds.size.y),
-		Vector2(-world_bounds.size.x, world_bounds.size.y),
-		Vector2(world_bounds.size.x, -world_bounds.size.y),
-		Vector2(-world_bounds.size.x, -world_bounds.size.y)
-	]
+	var offsets := [Vector2.ZERO]
+	if edge_wrapping:
+		offsets.append_array([
+			Vector2(world_bounds.size.x, 0),
+			Vector2(-world_bounds.size.x, 0),
+			Vector2(0, world_bounds.size.y),
+			Vector2(0, -world_bounds.size.y),
+			Vector2(world_bounds.size.x, world_bounds.size.y),
+			Vector2(-world_bounds.size.x, world_bounds.size.y),
+			Vector2(world_bounds.size.x, -world_bounds.size.y),
+			Vector2(-world_bounds.size.x, -world_bounds.size.y)
+		])
 	
 	for offset in offsets:
 		# Check if this offset drawing would even be visible

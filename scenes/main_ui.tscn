@@ -276,3 +276,55 @@ unique_name_in_owner = true
 initial_position = 2
 size = Vector2i(300, 100)
 dialog_text = "Are you sure you want to join this team?"
+
+[node name="HostPopup" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Host Game Settings"
+initial_position = 2
+size = Vector2i(300, 150)
+ok_button_text = "Host"
+
+[node name="VBox" type="VBoxContainer" parent="HostPopup"]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 292.0
+offset_bottom = 101.0
+theme_override_constants/separation = 10
+
+[node name="SizeRow" type="HBoxContainer" parent="HostPopup/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HostPopup/VBox/SizeRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Play Area Size:"
+
+[node name="PlayAreaSizeOption" type="OptionButton" parent="HostPopup/VBox/SizeRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+item_count = 2
+selected = 0
+popup/item_0/text = "Small"
+popup/item_0/id = 0
+popup/item_1/text = "Large"
+popup/item_1/id = 1
+
+[node name="WrapRow" type="HBoxContainer" parent="HostPopup/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HostPopup/VBox/WrapRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Edge Wrapping:"
+
+[node name="EdgeWrapCheck" type="CheckButton" parent="HostPopup/VBox/WrapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+button_pressed = true
+text = "Enabled"

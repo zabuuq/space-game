@@ -6,6 +6,7 @@ const PROJECTILE_RADIUS := 1.5
 const PROJECTILE_RENDER_SIDES := 12
 
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
+var edge_wrapping := true
 var velocity := Vector2.ZERO
 var distance_traveled := 0.0
 
@@ -14,53 +15,74 @@ var distance_traveled := 0.0
 func _ready() -> void:
 	if not multiplayer.is_server():
 		set_physics_process(false)
+		
+	var main_node = get_tree().current_scene
+	if main_node != null and "world_bounds" in main_node:
+		world_bounds = main_node.world_bounds
+		edge_wrapping = main_node.current_edge_wrapping
 
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server():
 		return
-		
+
 	position += velocity * delta
 	distance_traveled += velocity.length() * delta
-	
+
 	if distance_traveled >= PROJECTILE_MAX_TRAVEL:
 		queue_free()
 		return
-		
+
 	_wrap_to_bounds()
 
 func _wrap_to_bounds() -> void:
 	var pos := position
 	var wrap_triggered := false
-	
+
 	if pos.x < world_bounds.position.x:
-		pos.x += world_bounds.size.x
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.x += world_bounds.size.x
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
 	elif pos.x > world_bounds.end.x:
-		pos.x -= world_bounds.size.x
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.x -= world_bounds.size.x
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
+
 	if pos.y < world_bounds.position.y:
-		pos.y += world_bounds.size.y
-		wrap_triggered = true
+		if edge_wrapping:
+			pos.y += world_bounds.size.y
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
 	elif pos.y > world_bounds.end.y:
-		pos.y -= world_bounds.size.y
-		wrap_triggered = true
-		
+		if edge_wrapping:
+			pos.y -= world_bounds.size.y
+			wrap_triggered = true
+		else:
+			queue_free()
+			return
+
 	if wrap_triggered:
 		position = pos
-
 func _draw() -> void:
-	var offsets := [
-		Vector2.ZERO,
-		Vector2(world_bounds.size.x, 0),
-		Vector2(-world_bounds.size.x, 0),
-		Vector2(0, world_bounds.size.y),
-		Vector2(0, -world_bounds.size.y),
-		Vector2(world_bounds.size.x, world_bounds.size.y),
-		Vector2(-world_bounds.size.x, world_bounds.size.y),
-		Vector2(world_bounds.size.x, -world_bounds.size.y),
-		Vector2(-world_bounds.size.x, -world_bounds.size.y)
-	]
+	var offsets := [Vector2.ZERO]
+	if edge_wrapping:
+		offsets.append_array([
+			Vector2(world_bounds.size.x, 0),
+			Vector2(-world_bounds.size.x, 0),
+			Vector2(0, world_bounds.size.y),
+			Vector2(0, -world_bounds.size.y),
+			Vector2(world_bounds.size.x, world_bounds.size.y),
+			Vector2(-world_bounds.size.x, world_bounds.size.y),
+			Vector2(world_bounds.size.x, -world_bounds.size.y),
+			Vector2(-world_bounds.size.x, -world_bounds.size.y)
+		])
 	
 	var points := PackedVector2Array()
 	var angle_step: float = (PI * 2.0) / PROJECTILE_RENDER_SIDES
