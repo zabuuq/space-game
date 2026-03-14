@@ -78,6 +78,11 @@ const PROJECTILE_SPAWN_OFFSET := 20.0
 func _ready() -> void:
 	if has_node("MultiplayerSynchronizer"):
 		$MultiplayerSynchronizer.set_multiplayer_authority(1)
+		
+	var main_node = get_tree().current_scene
+	if main_node != null and "world_bounds" in main_node:
+		world_bounds = main_node.world_bounds
+		edge_wrapping = main_node.current_edge_wrapping
 
 func _physics_process(_delta: float) -> void:
 	if multiplayer.multiplayer_peer != null and multiplayer.is_server():

@@ -15,6 +15,11 @@ var distance_traveled := 0.0
 func _ready() -> void:
 	if not multiplayer.is_server():
 		set_physics_process(false)
+		
+	var main_node = get_tree().current_scene
+	if main_node != null and "world_bounds" in main_node:
+		world_bounds = main_node.world_bounds
+		edge_wrapping = main_node.current_edge_wrapping
 
 func _physics_process(delta: float) -> void:
 	if not multiplayer.is_server():
