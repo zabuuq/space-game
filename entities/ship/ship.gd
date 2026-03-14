@@ -302,17 +302,18 @@ func _draw() -> void:
 	# To support "wrapping" visuals, we draw multiple copies if near an edge.
 	# The points are in local space, so (0,0) is our center.
 	
-	var offsets := [
-		Vector2.ZERO,
-		Vector2(world_bounds.size.x, 0),
-		Vector2(-world_bounds.size.x, 0),
-		Vector2(0, world_bounds.size.y),
-		Vector2(0, -world_bounds.size.y),
-		Vector2(world_bounds.size.x, world_bounds.size.y),
-		Vector2(-world_bounds.size.x, world_bounds.size.y),
-		Vector2(world_bounds.size.x, -world_bounds.size.y),
-		Vector2(-world_bounds.size.x, -world_bounds.size.y)
-	]
+	var offsets := [Vector2.ZERO]
+	if edge_wrapping:
+		offsets.append_array([
+			Vector2(world_bounds.size.x, 0),
+			Vector2(-world_bounds.size.x, 0),
+			Vector2(0, world_bounds.size.y),
+			Vector2(0, -world_bounds.size.y),
+			Vector2(world_bounds.size.x, world_bounds.size.y),
+			Vector2(-world_bounds.size.x, world_bounds.size.y),
+			Vector2(world_bounds.size.x, -world_bounds.size.y),
+			Vector2(-world_bounds.size.x, -world_bounds.size.y)
+		])
 	
 	for offset in offsets:
 		# Check if this offset drawing would even be visible

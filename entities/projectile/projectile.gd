@@ -66,17 +66,18 @@ func _wrap_to_bounds() -> void:
 	if wrap_triggered:
 		position = pos
 func _draw() -> void:
-	var offsets := [
-		Vector2.ZERO,
-		Vector2(world_bounds.size.x, 0),
-		Vector2(-world_bounds.size.x, 0),
-		Vector2(0, world_bounds.size.y),
-		Vector2(0, -world_bounds.size.y),
-		Vector2(world_bounds.size.x, world_bounds.size.y),
-		Vector2(-world_bounds.size.x, world_bounds.size.y),
-		Vector2(world_bounds.size.x, -world_bounds.size.y),
-		Vector2(-world_bounds.size.x, -world_bounds.size.y)
-	]
+	var offsets := [Vector2.ZERO]
+	if edge_wrapping:
+		offsets.append_array([
+			Vector2(world_bounds.size.x, 0),
+			Vector2(-world_bounds.size.x, 0),
+			Vector2(0, world_bounds.size.y),
+			Vector2(0, -world_bounds.size.y),
+			Vector2(world_bounds.size.x, world_bounds.size.y),
+			Vector2(-world_bounds.size.x, world_bounds.size.y),
+			Vector2(world_bounds.size.x, -world_bounds.size.y),
+			Vector2(-world_bounds.size.x, -world_bounds.size.y)
+		])
 	
 	var points := PackedVector2Array()
 	var angle_step: float = (PI * 2.0) / PROJECTILE_RENDER_SIDES
