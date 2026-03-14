@@ -7,7 +7,7 @@ var edge_wrapping := true
 var stars: Array[Vector2] = []
 
 func _ready() -> void:
-	z_index = -10
+	pass
 
 func generate_stars(bounds: Rect2, wrapping: bool) -> void:
 	world_bounds = bounds
