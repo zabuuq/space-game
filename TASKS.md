@@ -9,6 +9,9 @@
 - [ ] 39. Clean up Constants & Architecture: Consolidate duplicated constants like `SHIP_HIT_RADIUS` and begin breaking `main.gd` logic into smaller managers. Decouples game rules from networking and UI.
 - [ ] 40. Unified Ship Colors: Ensure ship color is controlled by the Pilot. Operators joining a ship inherit its color; when leaving, they are assigned the next available color. Prevents color exhaustion in team play.
 - [ ] 41. Reserved Observer Color: Remove White from the ship color palette and reserve it exclusively for Observers.
+- [ ] 42. Team Scoring: Update scoring logic to award a point to both the Pilot and the Operator when a kill is achieved by either team member.
+- [ ] 43. Expanded Controls: Add support for arrow keys for ship and turret movement in addition to the existing WASD controls.
+- [ ] 44. Square Large Map: Update the Large play area dimensions so that the height matches its width (creating a 4800x4800 square arena).
 
 ## In Progress
 
