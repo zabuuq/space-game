@@ -2,6 +2,14 @@
 
 ## To Do
 
+- [ ] 35. Optimize Collisions: Replace manual collision math with Godot's `Area2D` physics system. Offloads math to the physics engine and removes the need for duplicated constants like `SHIP_HIT_RADIUS`.
+- [ ] 36. Optimize Starfield: Rewrite the starfield to use a custom Shader or Parallax node instead of manual drawing. Reduces draw calls from 1,350+ per frame to a single GPU operation.
+- [ ] 37. Abstract Wrap Logic: Create a shared utility or shader for the Asteroids-style screen wrapping. Removes code duplication across `Ship`, `Projectile`, and `Starfield`.
+- [ ] 38. Fix RPC Flooding: Debounce the player name input so it only sends updates on submit/unfocus. Prevents potential lag caused by sending redundant network packets on every keystroke.
+- [ ] 39. Clean up Constants & Architecture: Consolidate duplicated constants like `SHIP_HIT_RADIUS` and begin breaking `main.gd` logic into smaller managers. Decouples game rules from networking and UI.
+- [ ] 40. Unified Ship Colors: Ensure ship color is controlled by the Pilot. Operators joining a ship inherit its color; when leaving, they are assigned the next available color. Prevents color exhaustion in team play.
+- [ ] 41. Reserved Observer Color: Remove White from the ship color palette and reserve it exclusively for Observers.
+
 ## In Progress
 
 ## Done
@@ -39,6 +47,7 @@
 - [x] 31. Add scattered starfield background.
 - [x] 32. Implement seamless visual wrapping by drawing duplicates of players/objects on opposite edges.
 - [x] 33. Create off-screen pointer UI icons for other players matching team colors.
+- [x] 34. Optimize World Rendering: Refactor the game view to use `SubViewport`.
 
 ## Notes
 

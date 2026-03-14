@@ -45,8 +45,10 @@ const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
 
 @onready var ui: MainUi = %MainUi
-@onready var world_node: ColorRect = $World
-var world_root: Node2D
+@onready var world_node: SubViewportContainer = $World
+@onready var world_viewport: SubViewport = $World/SubViewport
+@onready var world_root: Node2D = $World/SubViewport/WorldRoot
+@onready var camera: Camera2D = $World/SubViewport/Camera2D
 
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
@@ -89,23 +91,6 @@ var off_screen_pointers: Control
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	
-	if world_node == null:
-		world_node = ColorRect.new()
-		world_node.name = "World"
-		world_node.color = Color.BLACK
-		world_node.clip_contents = true
-		add_child(world_node)
-		
-	if world_root == null:
-		world_root = Node2D.new()
-		world_root.name = "WorldRoot"
-		world_node.add_child(world_root)
-		
-		# Update spawners to point to the new root
-		for child in get_children():
-			if child is MultiplayerSpawner:
-				child.spawn_path = child.get_path_to(world_root)
-
 	starfield = preload("res://scripts/starfield.gd").new()
 	starfield.name = "Starfield"
 	world_root.add_child(starfield)
@@ -751,7 +736,6 @@ func _process(delta: float) -> void:
 		world_node.scale = Vector2(scale_x, scale_y)
 		
 		if current_play_area_size == 1: # Large
-			world_node.size = BASE_RESOLUTION
 			var target_pos := _get_camera_target_position()
 			
 			if current_edge_wrapping:
@@ -763,10 +747,9 @@ func _process(delta: float) -> void:
 				target_pos.x = clampf(target_pos.x, 0.0, world_bounds.size.x)
 				target_pos.y = clampf(target_pos.y, 0.0, world_bounds.size.y)
 			
-			world_root.position = (BASE_RESOLUTION * 0.5) - target_pos
+			camera.position = target_pos
 		else:
-			world_node.size = world_bounds.size
-			world_root.position = Vector2.ZERO
+			camera.position = BASE_RESOLUTION * 0.5
 
 	if multiplayer.multiplayer_peer == null:
 		return
