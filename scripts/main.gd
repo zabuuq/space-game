@@ -754,9 +754,14 @@ func _process(delta: float) -> void:
 			world_node.size = BASE_RESOLUTION
 			var target_pos := _get_camera_target_position()
 			
-			# Wrap the target position
-			target_pos.x = wrapf(target_pos.x, 0.0, world_bounds.size.x)
-			target_pos.y = wrapf(target_pos.y, 0.0, world_bounds.size.y)
+			if current_edge_wrapping:
+				# Wrap the target position
+				target_pos.x = wrapf(target_pos.x, 0.0, world_bounds.size.x)
+				target_pos.y = wrapf(target_pos.y, 0.0, world_bounds.size.y)
+			else:
+				# Clamp the target position to world bounds
+				target_pos.x = clampf(target_pos.x, 0.0, world_bounds.size.x)
+				target_pos.y = clampf(target_pos.y, 0.0, world_bounds.size.y)
 			
 			world_root.position = (BASE_RESOLUTION * 0.5) - target_pos
 		else:
