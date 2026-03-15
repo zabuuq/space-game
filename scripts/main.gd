@@ -17,8 +17,8 @@ const MAX_CONNECT_ATTEMPTS := 3
 const CONNECTING_DOT_STEP_SECONDS := 0.25
 const CONNECT_RETRY_DELAY_SECONDS := 0.35
 const DEFAULT_PEER_TEXT_COLOR := "ffffff"
+const OBSERVER_COLOR := Color(0.93, 0.93, 0.93)
 const PLAYER_COLORS: Array[Color] = [
-	Color(0.93, 0.93, 0.93), # white
 	Color(0.97, 0.33, 0.33), # red
 	Color(0.20, 0.63, 0.98), # blue
 	Color(0.30, 0.84, 0.39), # green
@@ -290,7 +290,7 @@ func _resolve_color_for_peer(peer_id: int, preferred_color_index: int) -> int:
 func _get_ship_color_for_peer(peer_id: int) -> Color:
 	var color_index: int = peer_roster.get_peer_color_index(peer_id)
 	if color_index < 0 or color_index >= PLAYER_COLORS.size():
-		return Color.WHITE
+		return OBSERVER_COLOR
 	return PLAYER_COLORS[color_index]
 
 func _initialize_host_roster() -> void:
@@ -416,9 +416,12 @@ func _refresh_peer_list() -> void:
 		score_label.add_theme_font_size_override("font_size", list_font_size)
 
 		var text_color := Color.html("#%s" % DEFAULT_PEER_TEXT_COLOR)
-		var color_index: int = peer_roster.get_peer_color_index(peer_id)
-		if color_index >= 0 and color_index < PLAYER_COLORS.size():
-			text_color = PLAYER_COLORS[color_index]
+		if observer_queue.has(peer_id):
+			text_color = OBSERVER_COLOR
+		else:
+			var color_index: int = peer_roster.get_peer_color_index(peer_id)
+			if color_index >= 0 and color_index < PLAYER_COLORS.size():
+				text_color = PLAYER_COLORS[color_index]
 		
 		var score_value: int = scoring_manager.get_peer_score(peer_id)
 		score_label.text = str(score_value)
@@ -545,12 +548,15 @@ func request_join_team(pilot_id: int) -> void:
 	if pilot_ship != null:
 		pilot_ship.turret_operator_id = sender_id
 		pilot_ship.turret_visible = true
-		pilot_ship.turret_color = _get_ship_color_for_peer(sender_id)
+		pilot_ship.turret_color = _get_ship_color_for_peer(pilot_id)
 		_set_damage_immunity_for_peer(pilot_id)
 		pilot_ship.is_immune = true
-	
-	_broadcast_team_roster()
 
+	# Inherit pilot's color
+	var pilot_color_index: int = peer_roster.get_peer_color_index(pilot_id)
+	peer_roster.set_peer_color_index(sender_id, pilot_color_index)
+	_broadcast_peer_roster()
+	_broadcast_team_roster()
 @rpc("any_peer", "call_local", "reliable")
 func request_leave_team() -> void:
 	if not multiplayer.is_server():
@@ -600,6 +606,11 @@ func _server_handle_peer_leave_team(peer_id: int) -> void:
 			
 		# Respawn operator or make observer
 		_assign_peer_role(operator_id)
+		
+		# Assign next available color
+		var new_color_index: int = peer_roster.find_first_available_color(PLAYER_COLORS.size(), operator_id)
+		peer_roster.set_peer_color_index(operator_id, new_color_index)
+		_broadcast_peer_roster()
 
 func _broadcast_team_roster() -> void:
 	if not multiplayer.is_server():
@@ -630,7 +641,13 @@ func _submit_local_identity() -> void:
 
 	if multiplayer.is_server():
 		var host_id: int = multiplayer.get_unique_id()
-		var resolved_color_index := _resolve_color_for_peer(host_id, local_preferred_color_index)
+		
+		var effective_color_index := local_preferred_color_index
+		if pilot_by_turret_operator_id.has(host_id):
+			var pilot_id: int = pilot_by_turret_operator_id[host_id]
+			effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+			
+		var resolved_color_index := _resolve_color_for_peer(host_id, effective_color_index)
 		_set_local_color_index(resolved_color_index)
 		peer_roster.upsert_peer(
 			host_id,
@@ -642,6 +659,12 @@ func _submit_local_identity() -> void:
 		scoring_manager.bind_peer_score(host_id, peer_roster.get_peer_identity_key(host_id))
 		peer_roster.ensure_peer_in_order(host_id)
 		_update_ship_color(host_id)
+		
+		if turret_operator_by_pilot_id.has(host_id):
+			var operator_id: int = turret_operator_by_pilot_id[host_id]
+			peer_roster.set_peer_color_index(operator_id, resolved_color_index)
+			_update_ship_color(operator_id)
+			
 		_broadcast_peer_roster()
 	else:
 		submit_peer_info.rpc_id(

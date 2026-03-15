@@ -2,8 +2,6 @@
 
 ## To Do
 
-- [ ] 40. Unified Ship Colors: Ensure ship color is controlled by the Pilot. Operators joining a ship inherit its color; when leaving, they are assigned the next available color. Prevents color exhaustion in team play.
-- [ ] 41. Reserved Observer Color: Remove White from the ship color palette and reserve it exclusively for Observers.
 - [ ] 42. Team Scoring: Update scoring logic to award a point to both the Pilot and the Operator when a kill is achieved by either team member.
 - [ ] 43. Expanded Controls: Add support for arrow keys for ship and turret movement in addition to the existing WASD controls.
 - [ ] 44. Square Large Map: Update the Large play area dimensions so that the height matches its width (creating a 4800x4800 square arena).
@@ -51,6 +49,8 @@
 - [x] 39. Clean up Constants & Architecture: Consolidate duplicated constants like `SHIP_HIT_RADIUS` and begin breaking `main.gd` logic into smaller managers.
 - [x] 37. Abstract Wrap Logic: Create a shared utility for Asteroids-style screen wrapping.
 - [x] 38. Fix RPC Flooding: Debounce player name input to only update on submit or focus loss.
+- [x] 40. Unified Ship Colors: Operators inherit pilot color and update with pilot; get next available when leaving.
+- [x] 41. Reserved Observer Color: Reserved white exclusively for observers.
 
 ## Notes
 
