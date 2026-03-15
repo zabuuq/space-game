@@ -4,7 +4,6 @@ const DEFAULT_PORT := 56419
 const BASE_RESOLUTION := Vector2(1600.0, 900.0)
 const MAX_SHIPS := 6
 const FIRE_INTERVAL_SECONDS := 0.16
-const SHIP_HIT_RADIUS := 8.0
 const DAMAGE_IMMUNITY_SECONDS := 2.0
 const IMMUNE_ACCELERATION_MULTIPLIER := 4.0
 
@@ -43,6 +42,7 @@ const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
+const SCORING_MANAGER_SCRIPT := preload("res://scripts/scoring_manager.gd")
 
 @onready var ui: MainUi = %MainUi
 @onready var world_node: SubViewportContainer = $World
@@ -53,15 +53,13 @@ const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.g
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
 var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
+var scoring_manager = SCORING_MANAGER_SCRIPT.new()
 
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var local_player_name: String = ""
 var local_preferred_color_index := -1
 var local_fire_cooldown := 0.0
-var score_by_identity: Dictionary = {}
-var peer_identity_by_id: Dictionary = {}
-var peer_score_by_id: Dictionary = {}
 var turret_operator_by_pilot_id: Dictionary = {}
 var pilot_by_turret_operator_id: Dictionary = {}
 var pending_team_join_request_pilot_id := 0
@@ -167,7 +165,7 @@ func _on_host_confirmed() -> void:
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
-	_reset_session_scores()
+	scoring_manager.clear()
 	_initialize_host_roster()
 	_assign_peer_role(multiplayer.get_unique_id())
 	_refresh_peer_list()
@@ -242,8 +240,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		return
 
 	peer_roster.remove_peer(peer_id)
-	peer_identity_by_id.erase(peer_id)
-	peer_score_by_id.erase(peer_id)
+	scoring_manager.remove_peer(peer_id)
 	observer_queue.erase(peer_id)
 	damage_immunity_until_by_peer.erase(peer_id)
 
@@ -264,7 +261,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	_stop_connect_sequence()
 	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
-	peer_score_by_id.clear()
+	scoring_manager.clear_peer_scores()
 	turret_operator_by_pilot_id.clear()
 	pilot_by_turret_operator_id.clear()
 	_refresh_peer_list()
@@ -307,7 +304,7 @@ func _initialize_host_roster() -> void:
 		local_player_name,
 		resolved_color_index
 	)
-	_bind_peer_score(host_id)
+	scoring_manager.bind_peer_score(host_id, peer_roster.get_peer_identity_key(host_id))
 	_broadcast_peer_roster()
 
 func _broadcast_peer_roster() -> void:
@@ -321,7 +318,7 @@ func _broadcast_peer_roster() -> void:
 		peer_roster.get_sync_external_ips(),
 		peer_roster.get_sync_names(),
 		peer_roster.get_sync_color_indices(),
-		_get_sync_scores(peer_ids)
+		scoring_manager.get_sync_scores(peer_ids)
 	)
 
 @rpc("authority", "call_local", "reliable")
@@ -334,10 +331,10 @@ func sync_peer_roster(
 	scores: Array[int]
 ) -> void:
 	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names, color_indices)
-	peer_score_by_id.clear()
+	scoring_manager.clear_peer_scores()
 	var score_total: int = mini(peer_ids.size(), scores.size())
 	for index in range(score_total):
-		peer_score_by_id[peer_ids[index]] = int(scores[index])
+		scoring_manager.set_peer_score(peer_ids[index], int(scores[index]))
 	_sync_local_color_from_roster()
 	_refresh_peer_list()
 
@@ -423,7 +420,7 @@ func _refresh_peer_list() -> void:
 		if color_index >= 0 and color_index < PLAYER_COLORS.size():
 			text_color = PLAYER_COLORS[color_index]
 		
-		var score_value: int = int(peer_score_by_id.get(peer_id, 0))
+		var score_value: int = scoring_manager.get_peer_score(peer_id)
 		score_label.text = str(score_value)
 
 		left_label.add_theme_color_override("font_color", text_color)
@@ -642,7 +639,7 @@ func _submit_local_identity() -> void:
 			local_player_name,
 			resolved_color_index
 		)
-		_bind_peer_score(host_id)
+		scoring_manager.bind_peer_score(host_id, peer_roster.get_peer_identity_key(host_id))
 		peer_roster.ensure_peer_in_order(host_id)
 		_update_ship_color(host_id)
 		_broadcast_peer_roster()
@@ -674,7 +671,7 @@ func submit_peer_info(
 		player_name,
 		resolved_color_index
 	)
-	_bind_peer_score(sender_id)
+	scoring_manager.bind_peer_score(sender_id, peer_roster.get_peer_identity_key(sender_id))
 	_update_ship_color(sender_id)
 	_broadcast_peer_roster()
 
@@ -844,7 +841,7 @@ func _server_rule_checks(_delta: float) -> void:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
 			_reset_ship(hit_ship, hit_peer_id)
-			score_changed = _award_point(proj.shooter_peer_id, points_to_award) or score_changed
+			score_changed = scoring_manager.award_point(proj.shooter_peer_id, peer_roster.get_peer_identity_key(proj.shooter_peer_id), points_to_award) or score_changed
 			proj.queue_free()
 
 	if score_changed:
@@ -1185,37 +1182,3 @@ func _is_peer_damage_immune(peer_id: int) -> bool:
 
 func _get_server_time_seconds() -> float:
 	return Time.get_ticks_msec() / 1000.0
-
-func _reset_session_scores() -> void:
-	score_by_identity.clear()
-	peer_identity_by_id.clear()
-	peer_score_by_id.clear()
-
-func _bind_peer_score(peer_id: int) -> void:
-	var identity_key: String = peer_roster.get_peer_identity_key(peer_id)
-	if identity_key.is_empty():
-		return
-	peer_identity_by_id[peer_id] = identity_key
-	if not score_by_identity.has(identity_key):
-		score_by_identity[identity_key] = 0
-	peer_score_by_id[peer_id] = int(score_by_identity[identity_key])
-
-func _award_point(peer_id: int, points: int = 1) -> bool:
-	if peer_id == -1:
-		return false
-	var identity_key: String = str(peer_identity_by_id.get(peer_id, ""))
-	if identity_key.is_empty():
-		_bind_peer_score(peer_id)
-		identity_key = str(peer_identity_by_id.get(peer_id, ""))
-	if identity_key.is_empty():
-		return false
-	var next_score: int = int(score_by_identity.get(identity_key, 0)) + points
-	score_by_identity[identity_key] = next_score
-	peer_score_by_id[peer_id] = next_score
-	return true
-
-func _get_sync_scores(peer_ids: Array[int]) -> Array[int]:
-	var scores: Array[int] = []
-	for peer_id in peer_ids:
-		scores.append(int(peer_score_by_id.get(peer_id, 0)))
-	return scores
