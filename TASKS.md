@@ -39,6 +39,17 @@
 - [x] 31. Add scattered starfield background.
 - [x] 32. Implement seamless visual wrapping by drawing duplicates of players/objects on opposite edges.
 - [x] 33. Create off-screen pointer UI icons for other players matching team colors.
+- [x] 34. Optimize World Rendering: Refactor the game view to use `SubViewport`.
+- [x] 35. Optimize Collisions: Replace manual collision math with Godot's `Area2D` physics system.
+- [x] 36. Optimize Starfield: Rewrite the starfield to use a custom Shader or Parallax node instead of manual drawing.
+- [x] 39. Clean up Constants & Architecture: Consolidate duplicated constants like `SHIP_HIT_RADIUS` and begin breaking `main.gd` logic into smaller managers.
+- [x] 37. Abstract Wrap Logic: Create a shared utility for Asteroids-style screen wrapping.
+- [x] 38. Fix RPC Flooding: Debounce player name input to only update on submit or focus loss.
+- [x] 40. Unified Ship Colors: Operators inherit pilot color and update with pilot; get next available when leaving.
+- [x] 41. Reserved Observer Color: Reserved white exclusively for observers.
+- [x] 42. Team Scoring: Award point to both the Pilot and the Operator when a kill is achieved by either.
+- [x] 43. Expanded Controls: Added arrow keys support for ship and turret movement.
+- [x] 44. Square Large Map: Updated the Large play area dimensions to a 4800x4800 square arena.
 
 ## Notes
 

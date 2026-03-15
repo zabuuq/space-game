@@ -42,7 +42,8 @@ func setup_ui(
 	on_name_changed: Callable,
 	on_color_selected: Callable,
 	on_right_section_resized: Callable,
-	on_host_confirmed: Callable
+	on_host_confirmed: Callable,
+	on_name_submitted: Callable
 ) -> void:
 	quit_button.pressed.connect(on_quit_pressed)
 	host_button.pressed.connect(on_host_pressed)
@@ -51,6 +52,8 @@ func setup_ui(
 	connect_button.pressed.connect(on_connect_pressed)
 	host_popup.confirmed.connect(on_host_confirmed)
 	player_name_input.text_changed.connect(on_name_changed)
+	player_name_input.text_submitted.connect(on_name_submitted)
+	player_name_input.focus_exited.connect(func(): on_name_submitted.call(player_name_input.text))
 	player_color_dropdown.item_selected.connect(on_color_selected)
 	right_section.resized.connect(on_right_section_resized)
 

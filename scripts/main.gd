@@ -4,7 +4,6 @@ const DEFAULT_PORT := 56419
 const BASE_RESOLUTION := Vector2(1600.0, 900.0)
 const MAX_SHIPS := 6
 const FIRE_INTERVAL_SECONDS := 0.16
-const SHIP_HIT_RADIUS := 8.0
 const DAMAGE_IMMUNITY_SECONDS := 2.0
 const IMMUNE_ACCELERATION_MULTIPLIER := 4.0
 
@@ -18,8 +17,8 @@ const MAX_CONNECT_ATTEMPTS := 3
 const CONNECTING_DOT_STEP_SECONDS := 0.25
 const CONNECT_RETRY_DELAY_SECONDS := 0.35
 const DEFAULT_PEER_TEXT_COLOR := "ffffff"
+const OBSERVER_COLOR := Color(0.93, 0.93, 0.93)
 const PLAYER_COLORS: Array[Color] = [
-	Color(0.93, 0.93, 0.93), # white
 	Color(0.97, 0.33, 0.33), # red
 	Color(0.20, 0.63, 0.98), # blue
 	Color(0.30, 0.84, 0.39), # green
@@ -43,23 +42,24 @@ const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
+const SCORING_MANAGER_SCRIPT := preload("res://scripts/scoring_manager.gd")
 
 @onready var ui: MainUi = %MainUi
-@onready var world_node: ColorRect = $World
-var world_root: Node2D
+@onready var world_node: SubViewportContainer = $World
+@onready var world_viewport: SubViewport = $World/SubViewport
+@onready var world_root: Node2D = $World/SubViewport/WorldRoot
+@onready var camera: Camera2D = $World/SubViewport/Camera2D
 
 var connection_controller: ConnectionController = CONNECTION_CONTROLLER_SCRIPT.new()
 var ip_info: IpInfoService = IP_INFO_SERVICE_SCRIPT.new()
 var peer_roster: PeerRosterService = PEER_ROSTER_SERVICE_SCRIPT.new()
+var scoring_manager = SCORING_MANAGER_SCRIPT.new()
 
 var ship_owner_by_slot: Array[int] = []
 var observer_queue: Array[int] = []
 var local_player_name: String = ""
 var local_preferred_color_index := -1
 var local_fire_cooldown := 0.0
-var score_by_identity: Dictionary = {}
-var peer_identity_by_id: Dictionary = {}
-var peer_score_by_id: Dictionary = {}
 var turret_operator_by_pilot_id: Dictionary = {}
 var pilot_by_turret_operator_id: Dictionary = {}
 var pending_team_join_request_pilot_id := 0
@@ -89,23 +89,6 @@ var off_screen_pointers: Control
 func _ready() -> void:
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	
-	if world_node == null:
-		world_node = ColorRect.new()
-		world_node.name = "World"
-		world_node.color = Color.BLACK
-		world_node.clip_contents = true
-		add_child(world_node)
-		
-	if world_root == null:
-		world_root = Node2D.new()
-		world_root.name = "WorldRoot"
-		world_node.add_child(world_root)
-		
-		# Update spawners to point to the new root
-		for child in get_children():
-			if child is MultiplayerSpawner:
-				child.spawn_path = child.get_path_to(world_root)
-
 	starfield = preload("res://scripts/starfield.gd").new()
 	starfield.name = "Starfield"
 	world_root.add_child(starfield)
@@ -127,9 +110,9 @@ func _ready() -> void:
 		_on_player_name_changed,
 		_on_player_color_selected,
 		queue_redraw,
-		_on_host_confirmed
+		_on_host_confirmed,
+		_on_player_name_submitted
 	)
-	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ui.initialize_color_dropdown(PLAYER_COLORS)
 	ui.team_confirm_dialog.confirmed.connect(_on_team_confirm_dialog_confirmed)
 
@@ -182,7 +165,7 @@ func _on_host_confirmed() -> void:
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
-	_reset_session_scores()
+	scoring_manager.clear()
 	_initialize_host_roster()
 	_assign_peer_role(multiplayer.get_unique_id())
 	_refresh_peer_list()
@@ -237,7 +220,7 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 	current_play_area_size = play_area_size
 	current_edge_wrapping = edge_wrapping
 	if play_area_size == 1:
-		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION * 3.0)
+		world_bounds = Rect2(Vector2.ZERO, Vector2(BASE_RESOLUTION.x * 3.0, BASE_RESOLUTION.x * 3.0))
 	else:
 		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION)
 		
@@ -257,8 +240,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 		return
 
 	peer_roster.remove_peer(peer_id)
-	peer_identity_by_id.erase(peer_id)
-	peer_score_by_id.erase(peer_id)
+	scoring_manager.remove_peer(peer_id)
 	observer_queue.erase(peer_id)
 	damage_immunity_until_by_peer.erase(peer_id)
 
@@ -279,7 +261,7 @@ func _disconnect_local_peer(update_status: bool) -> void:
 	_stop_connect_sequence()
 	connection_controller.disconnect_session(update_status)
 	peer_roster.clear()
-	peer_score_by_id.clear()
+	scoring_manager.clear_peer_scores()
 	turret_operator_by_pilot_id.clear()
 	pilot_by_turret_operator_id.clear()
 	_refresh_peer_list()
@@ -308,7 +290,7 @@ func _resolve_color_for_peer(peer_id: int, preferred_color_index: int) -> int:
 func _get_ship_color_for_peer(peer_id: int) -> Color:
 	var color_index: int = peer_roster.get_peer_color_index(peer_id)
 	if color_index < 0 or color_index >= PLAYER_COLORS.size():
-		return Color.WHITE
+		return OBSERVER_COLOR
 	return PLAYER_COLORS[color_index]
 
 func _initialize_host_roster() -> void:
@@ -322,7 +304,7 @@ func _initialize_host_roster() -> void:
 		local_player_name,
 		resolved_color_index
 	)
-	_bind_peer_score(host_id)
+	scoring_manager.bind_peer_score(host_id, peer_roster.get_peer_identity_key(host_id))
 	_broadcast_peer_roster()
 
 func _broadcast_peer_roster() -> void:
@@ -336,7 +318,7 @@ func _broadcast_peer_roster() -> void:
 		peer_roster.get_sync_external_ips(),
 		peer_roster.get_sync_names(),
 		peer_roster.get_sync_color_indices(),
-		_get_sync_scores(peer_ids)
+		scoring_manager.get_sync_scores(peer_ids)
 	)
 
 @rpc("authority", "call_local", "reliable")
@@ -349,10 +331,10 @@ func sync_peer_roster(
 	scores: Array[int]
 ) -> void:
 	peer_roster.apply_synced_roster(peer_ids, internal_ips, external_ips, names, color_indices)
-	peer_score_by_id.clear()
+	scoring_manager.clear_peer_scores()
 	var score_total: int = mini(peer_ids.size(), scores.size())
 	for index in range(score_total):
-		peer_score_by_id[peer_ids[index]] = int(scores[index])
+		scoring_manager.set_peer_score(peer_ids[index], int(scores[index]))
 	_sync_local_color_from_roster()
 	_refresh_peer_list()
 
@@ -434,11 +416,14 @@ func _refresh_peer_list() -> void:
 		score_label.add_theme_font_size_override("font_size", list_font_size)
 
 		var text_color := Color.html("#%s" % DEFAULT_PEER_TEXT_COLOR)
-		var color_index: int = peer_roster.get_peer_color_index(peer_id)
-		if color_index >= 0 and color_index < PLAYER_COLORS.size():
-			text_color = PLAYER_COLORS[color_index]
+		if observer_queue.has(peer_id):
+			text_color = OBSERVER_COLOR
+		else:
+			var color_index: int = peer_roster.get_peer_color_index(peer_id)
+			if color_index >= 0 and color_index < PLAYER_COLORS.size():
+				text_color = PLAYER_COLORS[color_index]
 		
-		var score_value: int = int(peer_score_by_id.get(peer_id, 0))
+		var score_value: int = scoring_manager.get_peer_score(peer_id)
 		score_label.text = str(score_value)
 
 		left_label.add_theme_color_override("font_color", text_color)
@@ -563,12 +548,15 @@ func request_join_team(pilot_id: int) -> void:
 	if pilot_ship != null:
 		pilot_ship.turret_operator_id = sender_id
 		pilot_ship.turret_visible = true
-		pilot_ship.turret_color = _get_ship_color_for_peer(sender_id)
+		pilot_ship.turret_color = _get_ship_color_for_peer(pilot_id)
 		_set_damage_immunity_for_peer(pilot_id)
 		pilot_ship.is_immune = true
-	
-	_broadcast_team_roster()
 
+	# Inherit pilot's color
+	var pilot_color_index: int = peer_roster.get_peer_color_index(pilot_id)
+	peer_roster.set_peer_color_index(sender_id, pilot_color_index)
+	_broadcast_peer_roster()
+	_broadcast_team_roster()
 @rpc("any_peer", "call_local", "reliable")
 func request_leave_team() -> void:
 	if not multiplayer.is_server():
@@ -618,6 +606,11 @@ func _server_handle_peer_leave_team(peer_id: int) -> void:
 			
 		# Respawn operator or make observer
 		_assign_peer_role(operator_id)
+		
+		# Assign next available color
+		var new_color_index: int = peer_roster.find_first_available_color(PLAYER_COLORS.size(), operator_id)
+		peer_roster.set_peer_color_index(operator_id, new_color_index)
+		_broadcast_peer_roster()
 
 func _broadcast_team_roster() -> void:
 	if not multiplayer.is_server():
@@ -648,7 +641,13 @@ func _submit_local_identity() -> void:
 
 	if multiplayer.is_server():
 		var host_id: int = multiplayer.get_unique_id()
-		var resolved_color_index := _resolve_color_for_peer(host_id, local_preferred_color_index)
+		
+		var effective_color_index := local_preferred_color_index
+		if pilot_by_turret_operator_id.has(host_id):
+			var pilot_id: int = pilot_by_turret_operator_id[host_id]
+			effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+			
+		var resolved_color_index := _resolve_color_for_peer(host_id, effective_color_index)
 		_set_local_color_index(resolved_color_index)
 		peer_roster.upsert_peer(
 			host_id,
@@ -657,9 +656,15 @@ func _submit_local_identity() -> void:
 			local_player_name,
 			resolved_color_index
 		)
-		_bind_peer_score(host_id)
+		scoring_manager.bind_peer_score(host_id, peer_roster.get_peer_identity_key(host_id))
 		peer_roster.ensure_peer_in_order(host_id)
 		_update_ship_color(host_id)
+		
+		if turret_operator_by_pilot_id.has(host_id):
+			var operator_id: int = turret_operator_by_pilot_id[host_id]
+			peer_roster.set_peer_color_index(operator_id, resolved_color_index)
+			_update_ship_color(operator_id)
+			
 		_broadcast_peer_roster()
 	else:
 		submit_peer_info.rpc_id(
@@ -689,7 +694,7 @@ func submit_peer_info(
 		player_name,
 		resolved_color_index
 	)
-	_bind_peer_score(sender_id)
+	scoring_manager.bind_peer_score(sender_id, peer_roster.get_peer_identity_key(sender_id))
 	_update_ship_color(sender_id)
 	_broadcast_peer_roster()
 
@@ -716,10 +721,11 @@ func _on_ip_info_updated() -> void:
 
 func _on_player_name_changed(value: String) -> void:
 	local_player_name = value.strip_edges()
+
+func _on_player_name_submitted(value: String) -> void:
+	local_player_name = value.strip_edges()
 	_submit_local_identity()
 	_refresh_peer_list()
-
-func _on_player_name_submitted(_value: String) -> void:
 	ui.player_name_input.release_focus()
 
 func _on_player_color_selected(selected_index: int) -> void:
@@ -751,7 +757,6 @@ func _process(delta: float) -> void:
 		world_node.scale = Vector2(scale_x, scale_y)
 		
 		if current_play_area_size == 1: # Large
-			world_node.size = BASE_RESOLUTION
 			var target_pos := _get_camera_target_position()
 			
 			if current_edge_wrapping:
@@ -763,10 +768,9 @@ func _process(delta: float) -> void:
 				target_pos.x = clampf(target_pos.x, 0.0, world_bounds.size.x)
 				target_pos.y = clampf(target_pos.y, 0.0, world_bounds.size.y)
 			
-			world_root.position = (BASE_RESOLUTION * 0.5) - target_pos
+			camera.position = target_pos
 		else:
-			world_node.size = world_bounds.size
-			world_root.position = Vector2.ZERO
+			camera.position = BASE_RESOLUTION * 0.5
 
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -812,11 +816,11 @@ func _handle_local_input() -> void:
 			local_ship.request_fire.rpc_id(1)
 
 		# Handle ship movement input
-		var turn_left := Input.is_physical_key_pressed(KEY_A)
-		var turn_right := Input.is_physical_key_pressed(KEY_D)
-		var accelerate := Input.is_physical_key_pressed(KEY_W)
-		var decelerate := Input.is_physical_key_pressed(KEY_S)
-		
+		var turn_left := Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
+		var turn_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
+		var accelerate := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+		var decelerate := Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
+
 		local_ship.submit_input.rpc_id(1, turn_left, turn_right, accelerate, decelerate)
 
 		if Input.is_physical_key_pressed(KEY_X):
@@ -826,8 +830,8 @@ func _handle_local_input() -> void:
 	var all_ships := _get_all_ships()
 	for ship in all_ships:
 		if ship.turret_operator_id == local_id:
-			var t_left := Input.is_physical_key_pressed(KEY_A)
-			var t_right := Input.is_physical_key_pressed(KEY_D)
+			var t_left := Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
+			var t_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
 			ship.submit_turret_input.rpc_id(1, t_left, t_right)
 			
 			if Input.is_physical_key_pressed(KEY_SPACE):
@@ -846,43 +850,36 @@ func _server_rule_checks(_delta: float) -> void:
 	# Projectile collision detection
 	var score_changed := false
 	for proj in all_projectiles:
-		var hit_ship = _get_hit_ship(proj.position, proj.shooter_peer_id, all_ships)
+		var hit_ship: Ship = null
+		for area in proj.get_overlapping_areas():
+			if area is Ship:
+				var owner_id = area.get_multiplayer_authority()
+				if owner_id == -1 or owner_id == proj.shooter_peer_id:
+					continue
+				if area.is_immune:
+					continue
+				hit_ship = area
+				break
+				
 		if hit_ship != null:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
 			_reset_ship(hit_ship, hit_peer_id)
-			score_changed = _award_point(proj.shooter_peer_id, points_to_award) or score_changed
+			
+			var shooter_id = proj.shooter_peer_id
+			score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), points_to_award) or score_changed
+			
+			if turret_operator_by_pilot_id.has(shooter_id):
+				var operator_id: int = turret_operator_by_pilot_id[shooter_id]
+				score_changed = scoring_manager.award_point(operator_id, peer_roster.get_peer_identity_key(operator_id), points_to_award) or score_changed
+			elif pilot_by_turret_operator_id.has(shooter_id):
+				var pilot_id: int = pilot_by_turret_operator_id[shooter_id]
+				score_changed = scoring_manager.award_point(pilot_id, peer_roster.get_peer_identity_key(pilot_id), points_to_award) or score_changed
+				
 			proj.queue_free()
 
 	if score_changed:
 		_broadcast_peer_roster()
-
-func _get_hit_ship(projectile_position: Vector2, shooter_peer_id: int, ships: Array[Ship]) -> Ship:
-	for ship in ships:
-		var owner_id = ship.get_multiplayer_authority()
-		if owner_id == -1 or owner_id == shooter_peer_id:
-			continue
-		if _is_peer_damage_immune(owner_id):
-			continue
-		
-		# Fast broad-phase check (15 is max ship radius + 1.5 projectile radius)
-		if ship.position.distance_to(projectile_position) <= 16.5:
-			var local_pos = (projectile_position - ship.position).rotated(-ship.rotation)
-			
-			# Inside the main polygon body
-			if Geometry2D.is_point_in_polygon(local_pos, ship.SHIP_POINTS):
-				return ship
-				
-			# Check near edges (accounts for line thickness and projectile radius)
-			var point_count = ship.SHIP_POINTS.size()
-			for i in range(point_count):
-				var p1 = ship.SHIP_POINTS[i]
-				var p2 = ship.SHIP_POINTS[(i + 1) % point_count]
-				var closest = Geometry2D.get_closest_point_to_segment(local_pos, p1, p2)
-				if local_pos.distance_to(closest) <= 3.0:
-					return ship
-					
-	return null
 
 func _reset_ship(ship: Ship, peer_id: int) -> void:
 	var slot_index = _get_slot_index_for_peer(peer_id)
@@ -1219,37 +1216,3 @@ func _is_peer_damage_immune(peer_id: int) -> bool:
 
 func _get_server_time_seconds() -> float:
 	return Time.get_ticks_msec() / 1000.0
-
-func _reset_session_scores() -> void:
-	score_by_identity.clear()
-	peer_identity_by_id.clear()
-	peer_score_by_id.clear()
-
-func _bind_peer_score(peer_id: int) -> void:
-	var identity_key: String = peer_roster.get_peer_identity_key(peer_id)
-	if identity_key.is_empty():
-		return
-	peer_identity_by_id[peer_id] = identity_key
-	if not score_by_identity.has(identity_key):
-		score_by_identity[identity_key] = 0
-	peer_score_by_id[peer_id] = int(score_by_identity[identity_key])
-
-func _award_point(peer_id: int, points: int = 1) -> bool:
-	if peer_id == -1:
-		return false
-	var identity_key: String = str(peer_identity_by_id.get(peer_id, ""))
-	if identity_key.is_empty():
-		_bind_peer_score(peer_id)
-		identity_key = str(peer_identity_by_id.get(peer_id, ""))
-	if identity_key.is_empty():
-		return false
-	var next_score: int = int(score_by_identity.get(identity_key, 0)) + points
-	score_by_identity[identity_key] = next_score
-	peer_score_by_id[peer_id] = next_score
-	return true
-
-func _get_sync_scores(peer_ids: Array[int]) -> Array[int]:
-	var scores: Array[int] = []
-	for peer_id in peer_ids:
-		scores.append(int(peer_score_by_id.get(peer_id, 0)))
-	return scores

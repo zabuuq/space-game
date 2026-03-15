@@ -45,6 +45,10 @@ func ensure_peer_in_order(peer_id: int) -> void:
 	if not peer_order.has(peer_id):
 		peer_order.append(peer_id)
 
+func set_peer_color_index(peer_id: int, color_index: int) -> void:
+	if peer_info_by_id.has(peer_id):
+		peer_info_by_id[peer_id]["color_index"] = color_index
+
 func upsert_peer(
 	peer_id: int,
 	internal_ip: String,

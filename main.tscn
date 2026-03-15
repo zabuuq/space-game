@@ -9,14 +9,35 @@ script = ExtResource("1_3wnca")
 [node name="MainUi" parent="." instance=ExtResource("2_h2a3v")]
 unique_name_in_owner = true
 
-[node name="World" type="ColorRect" parent="."]
-clip_contents = true
+[node name="World" type="SubViewportContainer" parent="."]
+offset_right = 1600.0
+offset_bottom = 900.0
+
+[node name="SubViewport" type="SubViewport" parent="World"]
+handle_input_locally = false
+size = Vector2i(1600, 900)
+render_target_update_mode = 4
+
+[node name="BackgroundLayer" type="CanvasLayer" parent="World/SubViewport"]
+layer = -1
+
+[node name="Background" type="ColorRect" parent="World/SubViewport/BackgroundLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0, 0, 0, 1)
+
+[node name="Camera2D" type="Camera2D" parent="World/SubViewport"]
+position = Vector2(800, 450)
+
+[node name="WorldRoot" type="Node2D" parent="World/SubViewport"]
 
 [node name="ShipSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://entities/ship/ship.tscn")
-spawn_path = NodePath("../World")
+spawn_path = NodePath("../World/SubViewport/WorldRoot")
 
 [node name="ProjectileSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://entities/projectile/projectile.tscn")
-spawn_path = NodePath("../World")
+spawn_path = NodePath("../World/SubViewport/WorldRoot")

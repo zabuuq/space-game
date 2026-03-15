@@ -1,4 +1,4 @@
-extends CharacterBody2D
+extends Area2D
 class_name Ship
 
 ## Constants for ship movement and appearance
@@ -53,6 +53,7 @@ var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 var edge_wrapping := true
 
 ## Movement state
+var velocity := Vector2.ZERO
 var current_speed := 0.0
 var acceleration_multiplier := 1.0
 var is_immune := false :
@@ -74,6 +75,7 @@ const IMMUNITY_RING_EXTRA_PIXELS := 13.0
 const PROJECTILE_SCENE := preload("res://entities/projectile/projectile.tscn")
 const PROJECTILE_SPEED := 260.0
 const PROJECTILE_SPAWN_OFFSET := 20.0
+const WRAP_UTILS_SCRIPT := preload("res://scripts/wrap_utils.gd")
 
 func _ready() -> void:
 	if has_node("MultiplayerSynchronizer"):
@@ -156,7 +158,7 @@ func _spawn_projectile() -> void:
 	var spawn_pos = position + (forward * PROJECTILE_SPAWN_OFFSET)
 	
 	# Projectile class handles its own wrapping, so we just pass the initial wrapped pos
-	proj.position = _wrap_pos(spawn_pos)
+	proj.position = WRAP_UTILS_SCRIPT.wrap_pos(spawn_pos, world_bounds, edge_wrapping)
 	proj.velocity = forward * PROJECTILE_SPEED
 	proj.shooter_peer_id = get_multiplayer_authority()
 	proj.modulate = ship_color
@@ -193,7 +195,7 @@ func _spawn_turret_projectile() -> void:
 	var proj = PROJECTILE_SCENE.instantiate()
 	var spawn_pos = position + (forward * TURRET_PROJECTILE_SPAWN_OFFSET)
 	
-	proj.position = _wrap_pos(spawn_pos)
+	proj.position = WRAP_UTILS_SCRIPT.wrap_pos(spawn_pos, world_bounds, edge_wrapping)
 	proj.velocity = forward * PROJECTILE_SPEED
 	# Use operator ID if present, otherwise default to ship authority for testing
 	proj.shooter_peer_id = turret_operator_id if turret_operator_id != 0 else get_multiplayer_authority()
@@ -202,15 +204,6 @@ func _spawn_turret_projectile() -> void:
 	proj.edge_wrapping = edge_wrapping
 
 	get_parent().add_child(proj, true)
-func _wrap_pos(pos: Vector2) -> Vector2:
-	if not edge_wrapping:
-		return pos
-	var wrapped := pos
-	if wrapped.x < world_bounds.position.x: wrapped.x = world_bounds.end.x
-	elif wrapped.x > world_bounds.end.x: wrapped.x = world_bounds.position.x
-	if wrapped.y < world_bounds.position.y: wrapped.y = world_bounds.end.y
-	elif wrapped.y > world_bounds.end.y: wrapped.y = world_bounds.position.y
-	return wrapped
 
 func update_movement(
 	delta: float,
@@ -246,7 +239,7 @@ func update_movement(
 	# Apply velocity
 	if current_speed > 0.0:
 		velocity = Vector2.UP.rotated(rotation) * current_speed
-		move_and_slide()
+		position += velocity * delta
 	else:
 		velocity = Vector2.ZERO
 
@@ -263,62 +256,24 @@ func full_stop() -> void:
 	velocity = Vector2.ZERO
 
 func _wrap_to_bounds() -> void:
-	var pos := position
-	var wrap_triggered := false
+	if edge_wrapping:
+		var new_pos := WRAP_UTILS_SCRIPT.wrap_pos(position, world_bounds, true)
+		if new_pos != position:
+			position = new_pos
+	else:
+		# Clamp to bounds and stop if hit edge
+		var clamped_x := clampf(position.x, world_bounds.position.x, world_bounds.end.x)
+		var clamped_y := clampf(position.y, world_bounds.position.y, world_bounds.end.y)
+		if clamped_x != position.x or clamped_y != position.y:
+			position = Vector2(clamped_x, clamped_y)
+			full_stop()
 
-	if pos.x < world_bounds.position.x:
-		if edge_wrapping:
-			pos.x += world_bounds.size.x
-			wrap_triggered = true
-		else:
-			pos.x = world_bounds.position.x
-			full_stop()
-			wrap_triggered = true
-	elif pos.x > world_bounds.end.x:
-		if edge_wrapping:
-			pos.x -= world_bounds.size.x
-			wrap_triggered = true
-		else:
-			pos.x = world_bounds.end.x
-			full_stop()
-			wrap_triggered = true
-
-	if pos.y < world_bounds.position.y:
-		if edge_wrapping:
-			pos.y += world_bounds.size.y
-			wrap_triggered = true
-		else:
-			pos.y = world_bounds.position.y
-			full_stop()
-			wrap_triggered = true
-	elif pos.y > world_bounds.end.y:
-		if edge_wrapping:
-			pos.y -= world_bounds.size.y
-			wrap_triggered = true
-		else:
-			pos.y = world_bounds.end.y
-			full_stop()
-			wrap_triggered = true
-
-	if wrap_triggered:
-		position = pos
 func _draw() -> void:
 	# Draw the ship using manual polyline for the 8-bit feel
 	# To support "wrapping" visuals, we draw multiple copies if near an edge.
 	# The points are in local space, so (0,0) is our center.
 	
-	var offsets := [Vector2.ZERO]
-	if edge_wrapping:
-		offsets.append_array([
-			Vector2(world_bounds.size.x, 0),
-			Vector2(-world_bounds.size.x, 0),
-			Vector2(0, world_bounds.size.y),
-			Vector2(0, -world_bounds.size.y),
-			Vector2(world_bounds.size.x, world_bounds.size.y),
-			Vector2(-world_bounds.size.x, world_bounds.size.y),
-			Vector2(world_bounds.size.x, -world_bounds.size.y),
-			Vector2(-world_bounds.size.x, -world_bounds.size.y)
-		])
+	var offsets := WRAP_UTILS_SCRIPT.get_wrap_offsets(world_bounds, edge_wrapping)
 	
 	for offset in offsets:
 		# Check if this offset drawing would even be visible
