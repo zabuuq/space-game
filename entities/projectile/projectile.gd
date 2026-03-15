@@ -4,6 +4,7 @@ class_name Projectile
 const PROJECTILE_MAX_TRAVEL := 400.0 # WORLD_BOUNDS.size.x * 0.25 (1600 * 0.25)
 const PROJECTILE_RADIUS := 1.5
 const PROJECTILE_RENDER_SIDES := 12
+const WRAP_UTILS_SCRIPT := preload("res://scripts/wrap_utils.gd")
 
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 var edge_wrapping := true
@@ -35,54 +36,17 @@ func _physics_process(delta: float) -> void:
 	_wrap_to_bounds()
 
 func _wrap_to_bounds() -> void:
-	var pos := position
-	var wrap_triggered := false
-
-	if pos.x < world_bounds.position.x:
-		if edge_wrapping:
-			pos.x += world_bounds.size.x
-			wrap_triggered = true
-		else:
-			queue_free()
-			return
-	elif pos.x > world_bounds.end.x:
-		if edge_wrapping:
-			pos.x -= world_bounds.size.x
-			wrap_triggered = true
-		else:
-			queue_free()
-			return
-
-	if pos.y < world_bounds.position.y:
-		if edge_wrapping:
-			pos.y += world_bounds.size.y
-			wrap_triggered = true
-		else:
-			queue_free()
-			return
-	elif pos.y > world_bounds.end.y:
-		if edge_wrapping:
-			pos.y -= world_bounds.size.y
-			wrap_triggered = true
-		else:
-			queue_free()
-			return
-
-	if wrap_triggered:
-		position = pos
-func _draw() -> void:
-	var offsets := [Vector2.ZERO]
 	if edge_wrapping:
-		offsets.append_array([
-			Vector2(world_bounds.size.x, 0),
-			Vector2(-world_bounds.size.x, 0),
-			Vector2(0, world_bounds.size.y),
-			Vector2(0, -world_bounds.size.y),
-			Vector2(world_bounds.size.x, world_bounds.size.y),
-			Vector2(-world_bounds.size.x, world_bounds.size.y),
-			Vector2(world_bounds.size.x, -world_bounds.size.y),
-			Vector2(-world_bounds.size.x, -world_bounds.size.y)
-		])
+		var new_pos := WRAP_UTILS_SCRIPT.wrap_pos(position, world_bounds, true)
+		if new_pos != position:
+			position = new_pos
+	else:
+		# Delete if hit edge
+		if not world_bounds.has_point(position):
+			queue_free()
+
+func _draw() -> void:
+	var offsets := WRAP_UTILS_SCRIPT.get_wrap_offsets(world_bounds, edge_wrapping)
 	
 	var points := PackedVector2Array()
 	var angle_step: float = (PI * 2.0) / PROJECTILE_RENDER_SIDES

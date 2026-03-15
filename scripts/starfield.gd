@@ -2,6 +2,7 @@ extends Node2D
 class_name Starfield
 
 const STAR_COUNT_PER_SCREEN = 150
+const WRAP_UTILS_SCRIPT := preload("res://scripts/wrap_utils.gd")
 var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 var edge_wrapping := true
 
@@ -19,18 +20,7 @@ func generate_stars(bounds: Rect2, wrapping: bool) -> void:
 	var area_ratio = (bounds.size.x * bounds.size.y) / (1600.0 * 900.0)
 	var num_stars = int(STAR_COUNT_PER_SCREEN * area_ratio)
 	
-	var offsets := [Vector2.ZERO]
-	if wrapping:
-		offsets.append_array([
-			Vector2(bounds.size.x, 0),
-			Vector2(-bounds.size.x, 0),
-			Vector2(0, bounds.size.y),
-			Vector2(0, -bounds.size.y),
-			Vector2(bounds.size.x, bounds.size.y),
-			Vector2(-bounds.size.x, bounds.size.y),
-			Vector2(bounds.size.x, -bounds.size.y),
-			Vector2(-bounds.size.x, -bounds.size.y)
-		])
+	var offsets := WRAP_UTILS_SCRIPT.get_wrap_offsets(bounds, wrapping)
 	
 	var total_instances = num_stars * offsets.size()
 	

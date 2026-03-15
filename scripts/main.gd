@@ -110,9 +110,9 @@ func _ready() -> void:
 		_on_player_name_changed,
 		_on_player_color_selected,
 		queue_redraw,
-		_on_host_confirmed
+		_on_host_confirmed,
+		_on_player_name_submitted
 	)
-	ui.player_name_input.text_submitted.connect(_on_player_name_submitted)
 	ui.initialize_color_dropdown(PLAYER_COLORS)
 	ui.team_confirm_dialog.confirmed.connect(_on_team_confirm_dialog_confirmed)
 
@@ -698,10 +698,11 @@ func _on_ip_info_updated() -> void:
 
 func _on_player_name_changed(value: String) -> void:
 	local_player_name = value.strip_edges()
+
+func _on_player_name_submitted(value: String) -> void:
+	local_player_name = value.strip_edges()
 	_submit_local_identity()
 	_refresh_peer_list()
-
-func _on_player_name_submitted(_value: String) -> void:
 	ui.player_name_input.release_focus()
 
 func _on_player_color_selected(selected_index: int) -> void:
