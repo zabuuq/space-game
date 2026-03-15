@@ -2,10 +2,6 @@
 
 ## To Do
 
-- [ ] 42. Team Scoring: Update scoring logic to award a point to both the Pilot and the Operator when a kill is achieved by either team member.
-- [ ] 43. Expanded Controls: Add support for arrow keys for ship and turret movement in addition to the existing WASD controls.
-- [ ] 44. Square Large Map: Update the Large play area dimensions so that the height matches its width (creating a 4800x4800 square arena).
-
 ## In Progress
 
 ## Done
@@ -51,6 +47,9 @@
 - [x] 38. Fix RPC Flooding: Debounce player name input to only update on submit or focus loss.
 - [x] 40. Unified Ship Colors: Operators inherit pilot color and update with pilot; get next available when leaving.
 - [x] 41. Reserved Observer Color: Reserved white exclusively for observers.
+- [x] 42. Team Scoring: Award point to both the Pilot and the Operator when a kill is achieved by either.
+- [x] 43. Expanded Controls: Added arrow keys support for ship and turret movement.
+- [x] 44. Square Large Map: Updated the Large play area dimensions to a 4800x4800 square arena.
 
 ## Notes
 

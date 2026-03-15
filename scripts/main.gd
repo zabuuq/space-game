@@ -220,7 +220,7 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 	current_play_area_size = play_area_size
 	current_edge_wrapping = edge_wrapping
 	if play_area_size == 1:
-		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION * 3.0)
+		world_bounds = Rect2(Vector2.ZERO, Vector2(BASE_RESOLUTION.x * 3.0, BASE_RESOLUTION.x * 3.0))
 	else:
 		world_bounds = Rect2(Vector2.ZERO, BASE_RESOLUTION)
 		
@@ -816,23 +816,22 @@ func _handle_local_input() -> void:
 			local_ship.request_fire.rpc_id(1)
 
 		# Handle ship movement input
-		var turn_left := Input.is_physical_key_pressed(KEY_A)
-		var turn_right := Input.is_physical_key_pressed(KEY_D)
-		var accelerate := Input.is_physical_key_pressed(KEY_W)
-		var decelerate := Input.is_physical_key_pressed(KEY_S)
-		
+		var turn_left := Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
+		var turn_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
+		var accelerate := Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP)
+		var decelerate := Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN)
+
 		local_ship.submit_input.rpc_id(1, turn_left, turn_right, accelerate, decelerate)
 
 		if Input.is_physical_key_pressed(KEY_X):
 			local_ship.request_full_stop.rpc_id(1)
 
-	# Handle input for any ship we are operating a turret on
-	var all_ships := _get_all_ships()
-	for ship in all_ships:
+		# Handle input for any ship we are operating a turret on
+		var all_ships := _get_all_ships()
+		for ship in all_ships:
 		if ship.turret_operator_id == local_id:
-			var t_left := Input.is_physical_key_pressed(KEY_A)
-			var t_right := Input.is_physical_key_pressed(KEY_D)
-			ship.submit_turret_input.rpc_id(1, t_left, t_right)
+			var t_left := Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
+			var t_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)			ship.submit_turret_input.rpc_id(1, t_left, t_right)
 			
 			if Input.is_physical_key_pressed(KEY_SPACE):
 				ship.request_turret_fire.rpc_id(1)
@@ -865,7 +864,17 @@ func _server_rule_checks(_delta: float) -> void:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
 			_reset_ship(hit_ship, hit_peer_id)
-			score_changed = scoring_manager.award_point(proj.shooter_peer_id, peer_roster.get_peer_identity_key(proj.shooter_peer_id), points_to_award) or score_changed
+			
+			var shooter_id = proj.shooter_peer_id
+			score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), points_to_award) or score_changed
+			
+			if turret_operator_by_pilot_id.has(shooter_id):
+				var operator_id: int = turret_operator_by_pilot_id[shooter_id]
+				score_changed = scoring_manager.award_point(operator_id, peer_roster.get_peer_identity_key(operator_id), points_to_award) or score_changed
+			elif pilot_by_turret_operator_id.has(shooter_id):
+				var pilot_id: int = pilot_by_turret_operator_id[shooter_id]
+				score_changed = scoring_manager.award_point(pilot_id, peer_roster.get_peer_identity_key(pilot_id), points_to_award) or score_changed
+				
 			proj.queue_free()
 
 	if score_changed:
