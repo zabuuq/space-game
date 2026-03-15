@@ -826,12 +826,13 @@ func _handle_local_input() -> void:
 		if Input.is_physical_key_pressed(KEY_X):
 			local_ship.request_full_stop.rpc_id(1)
 
-		# Handle input for any ship we are operating a turret on
-		var all_ships := _get_all_ships()
-		for ship in all_ships:
+	# Handle input for any ship we are operating a turret on
+	var all_ships := _get_all_ships()
+	for ship in all_ships:
 		if ship.turret_operator_id == local_id:
 			var t_left := Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT)
-			var t_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)			ship.submit_turret_input.rpc_id(1, t_left, t_right)
+			var t_right := Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT)
+			ship.submit_turret_input.rpc_id(1, t_left, t_right)
 			
 			if Input.is_physical_key_pressed(KEY_SPACE):
 				ship.request_turret_fire.rpc_id(1)
