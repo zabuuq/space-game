@@ -829,7 +829,17 @@ func _server_rule_checks(_delta: float) -> void:
 	# Projectile collision detection
 	var score_changed := false
 	for proj in all_projectiles:
-		var hit_ship = _get_hit_ship(proj.position, proj.shooter_peer_id, all_ships)
+		var hit_ship: Ship = null
+		for area in proj.get_overlapping_areas():
+			if area is Ship:
+				var owner_id = area.get_multiplayer_authority()
+				if owner_id == -1 or owner_id == proj.shooter_peer_id:
+					continue
+				if area.is_immune:
+					continue
+				hit_ship = area
+				break
+				
 		if hit_ship != null:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
@@ -839,33 +849,6 @@ func _server_rule_checks(_delta: float) -> void:
 
 	if score_changed:
 		_broadcast_peer_roster()
-
-func _get_hit_ship(projectile_position: Vector2, shooter_peer_id: int, ships: Array[Ship]) -> Ship:
-	for ship in ships:
-		var owner_id = ship.get_multiplayer_authority()
-		if owner_id == -1 or owner_id == shooter_peer_id:
-			continue
-		if _is_peer_damage_immune(owner_id):
-			continue
-		
-		# Fast broad-phase check (15 is max ship radius + 1.5 projectile radius)
-		if ship.position.distance_to(projectile_position) <= 16.5:
-			var local_pos = (projectile_position - ship.position).rotated(-ship.rotation)
-			
-			# Inside the main polygon body
-			if Geometry2D.is_point_in_polygon(local_pos, ship.SHIP_POINTS):
-				return ship
-				
-			# Check near edges (accounts for line thickness and projectile radius)
-			var point_count = ship.SHIP_POINTS.size()
-			for i in range(point_count):
-				var p1 = ship.SHIP_POINTS[i]
-				var p2 = ship.SHIP_POINTS[(i + 1) % point_count]
-				var closest = Geometry2D.get_closest_point_to_segment(local_pos, p1, p2)
-				if local_pos.distance_to(closest) <= 3.0:
-					return ship
-					
-	return null
 
 func _reset_ship(ship: Ship, peer_id: int) -> void:
 	var slot_index = _get_slot_index_for_peer(peer_id)

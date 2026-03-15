@@ -1,4 +1,4 @@
-extends CharacterBody2D
+extends Area2D
 class_name Ship
 
 ## Constants for ship movement and appearance
@@ -53,6 +53,7 @@ var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 var edge_wrapping := true
 
 ## Movement state
+var velocity := Vector2.ZERO
 var current_speed := 0.0
 var acceleration_multiplier := 1.0
 var is_immune := false :
@@ -246,7 +247,7 @@ func update_movement(
 	# Apply velocity
 	if current_speed > 0.0:
 		velocity = Vector2.UP.rotated(rotation) * current_speed
-		move_and_slide()
+		position += velocity * delta
 	else:
 		velocity = Vector2.ZERO
 

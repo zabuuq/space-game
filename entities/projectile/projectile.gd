@@ -1,4 +1,4 @@
-extends Node2D
+extends Area2D
 class_name Projectile
 
 const PROJECTILE_MAX_TRAVEL := 400.0 # WORLD_BOUNDS.size.x * 0.25 (1600 * 0.25)
