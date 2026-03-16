@@ -154,6 +154,7 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	get_viewport().size_changed.connect(queue_redraw)
 
+	multiplayer.multiplayer_peer = null
 	set_process_unhandled_input(true)
 	set_process(true)
 	_set_status(STATUS_NOT_CONNECTED)
