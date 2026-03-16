@@ -84,6 +84,8 @@ var slot_offer_local_timer: float = 0.0
 
 var current_play_area_size: int = 0
 var current_edge_wrapping: bool = true
+var current_enable_objects: bool = true
+var current_enable_npc: bool = true
 var world_bounds := Rect2(Vector2.ZERO, BASE_RESOLUTION)
 var starfield: Node2D
 var off_screen_pointers: Control
@@ -162,11 +164,13 @@ func _on_host_confirmed() -> void:
 	var settings = ui.get_host_settings()
 	current_play_area_size = settings.play_area_size
 	current_edge_wrapping = settings.edge_wrapping
+	current_enable_objects = settings.enable_objects
+	current_enable_npc = settings.enable_npc
 	
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
-	sync_game_settings(current_play_area_size, current_edge_wrapping)
+	sync_game_settings(current_play_area_size, current_edge_wrapping, current_enable_objects, current_enable_npc)
 	scoring_manager.clear()
 	_initialize_host_roster()
 	_assign_peer_role(multiplayer.get_unique_id())
@@ -211,16 +215,19 @@ func _on_peer_connected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
 
-	sync_game_settings.rpc_id(peer_id, current_play_area_size, current_edge_wrapping)
+	sync_game_settings.rpc_id(peer_id, current_play_area_size, current_edge_wrapping, current_enable_objects, current_enable_npc)
 	peer_roster.ensure_peer_in_order(peer_id)
 	_assign_peer_role(peer_id)
 	_broadcast_peer_roster()
 	_broadcast_team_roster()
 
 @rpc("authority", "call_local", "reliable")
-func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
+func sync_game_settings(play_area_size: int, edge_wrapping: bool, enable_objects: bool, enable_npc: bool) -> void:
 	current_play_area_size = play_area_size
 	current_edge_wrapping = edge_wrapping
+	current_enable_objects = enable_objects
+	current_enable_npc = enable_npc
+	
 	if play_area_size == 1:
 		world_bounds = Rect2(Vector2.ZERO, Vector2(BASE_RESOLUTION.x * 3.0, BASE_RESOLUTION.x * 3.0))
 	else:
@@ -241,7 +248,11 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 		obs.edge_wrapping = edge_wrapping
 
 	if multiplayer.is_server():
-		_spawn_obstacles()
+		if current_enable_objects:
+			_spawn_obstacles()
+		else:
+			for obs in _get_all_obstacles():
+				obs.queue_free()
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -945,6 +956,9 @@ func _spawn_obstacles() -> void:
 		var safe_zones: Array[Vector2] = []
 		for norm_pos in SHIP_START_NORMALIZED_POSITIONS:
 			safe_zones.append(_to_world_position(norm_pos))
+		
+		# NPC spawn safe zone (center)
+		safe_zones.append(world_bounds.get_center())
 			
 		var spawned := 0
 		var attempts := 0
