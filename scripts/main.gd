@@ -940,16 +940,36 @@ func _spawn_obstacles() -> void:
 		print("Spawning %d obstacles for Large map..." % LARGE_AREA_OBSTACLE_COUNT)
 		var rng = RandomNumberGenerator.new()
 		rng.randomize()
-		for i in range(LARGE_AREA_OBSTACLE_COUNT):
-			var obs = OBSTACLE_SCENE.instantiate() as Obstacle
-			obs.name = "Obstacle_%d" % i
-			obs.position = Vector2(rng.randf_range(0, world_bounds.size.x), rng.randf_range(0, world_bounds.size.y))
-			obs.rotation = rng.randf_range(0, TAU)
-			obs.shape_index = rng.randi() % 4
-			obs.shape_scale = rng.randf_range(1.5, 4.0)
-			obs.world_bounds = world_bounds
-			obs.edge_wrapping = current_edge_wrapping
-			world_root.add_child(obs, true)
+		
+		var safe_zones: Array[Vector2] = []
+		for norm_pos in SHIP_START_NORMALIZED_POSITIONS:
+			safe_zones.append(_to_world_position(norm_pos))
+			
+		var spawned := 0
+		var attempts := 0
+		var max_attempts := LARGE_AREA_OBSTACLE_COUNT * 10
+		
+		while spawned < LARGE_AREA_OBSTACLE_COUNT and attempts < max_attempts:
+			attempts += 1
+			var pos = Vector2(rng.randf_range(0, world_bounds.size.x), rng.randf_range(0, world_bounds.size.y))
+			
+			var is_safe = true
+			for safe_zone in safe_zones:
+				if pos.distance_to(safe_zone) < 250.0:
+					is_safe = false
+					break
+					
+			if is_safe:
+				var obs = OBSTACLE_SCENE.instantiate() as Obstacle
+				obs.name = "Obstacle_%d" % spawned
+				obs.position = pos
+				obs.rotation = rng.randf_range(0, TAU)
+				obs.shape_index = rng.randi() % 4
+				obs.shape_scale = rng.randf_range(0.375, 1.0)
+				obs.world_bounds = world_bounds
+				obs.edge_wrapping = current_edge_wrapping
+				world_root.add_child(obs, true)
+				spawned += 1
 
 func _get_ship_node(peer_id: int) -> Ship:
 	var expected_name := "Ship_%d" % peer_id
