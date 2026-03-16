@@ -50,6 +50,9 @@
 - [x] 42. Team Scoring: Award point to both the Pilot and the Operator when a kill is achieved by either.
 - [x] 43. Expanded Controls: Added arrow keys support for ship and turret movement.
 - [x] 44. Square Large Map: Updated the Large play area dimensions to a 4800x4800 square arena.
+- [x] 45. Create an Obstacle entity (Asteroid style using manual `_draw()`) that is solid and indestructible.
+- [x] 46. Implement collision handling so obstacles stop projectiles and bring ships to a dead stop on impact, without causing damage.
+- [x] 47. Implement a randomized Obstacle Spawner that populates the map with obstacles only when the "Large" play area is selected.
 
 ## Notes
 
