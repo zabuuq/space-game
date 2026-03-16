@@ -857,10 +857,11 @@ func _server_rule_checks(_delta: float) -> void:
 
 		for area in ship.get_overlapping_areas():
 			if area is Obstacle:
-				if ship.current_speed > 0:
-					var forward = Vector2.UP.rotated(ship.rotation)
-					ship.position -= forward * (ship.current_speed * _delta + 2.0)
-					ship.full_stop()
+				var push_dir = (ship.global_position - area.global_position).normalized()
+				if push_dir == Vector2.ZERO:
+					push_dir = Vector2.UP
+				ship.position += push_dir * 4.0
+				ship.full_stop()
 				break
 
 	# Projectile collision detection
