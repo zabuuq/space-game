@@ -39,6 +39,8 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 ]
 
 const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
+const OBSTACLE_SCENE := preload("res://entities/obstacle/obstacle.tscn")
+const LARGE_AREA_OBSTACLE_COUNT := 60
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
@@ -160,11 +162,11 @@ func _on_host_confirmed() -> void:
 	var settings = ui.get_host_settings()
 	current_play_area_size = settings.play_area_size
 	current_edge_wrapping = settings.edge_wrapping
-	sync_game_settings(current_play_area_size, current_edge_wrapping)
 	
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
+	sync_game_settings(current_play_area_size, current_edge_wrapping)
 	scoring_manager.clear()
 	_initialize_host_roster()
 	_assign_peer_role(multiplayer.get_unique_id())
@@ -234,6 +236,12 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 	for proj in _get_all_projectiles():
 		proj.world_bounds = world_bounds
 		proj.edge_wrapping = edge_wrapping
+	for obs in _get_all_obstacles():
+		obs.world_bounds = world_bounds
+		obs.edge_wrapping = edge_wrapping
+
+	if multiplayer.is_server():
+		_spawn_obstacles()
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -847,11 +855,24 @@ func _server_rule_checks(_delta: float) -> void:
 		ship.is_immune = _is_peer_damage_immune(owner_id)
 		ship.acceleration_multiplier = IMMUNE_ACCELERATION_MULTIPLIER if ship.is_immune else 1.0
 
+		for area in ship.get_overlapping_areas():
+			if area is Obstacle:
+				var push_dir = (ship.global_position - area.global_position).normalized()
+				if push_dir == Vector2.ZERO:
+					push_dir = Vector2.UP
+				ship.position += push_dir * 4.0
+				ship.full_stop()
+				break
+
 	# Projectile collision detection
 	var score_changed := false
 	for proj in all_projectiles:
 		var hit_ship: Ship = null
+		var hit_obstacle := false
 		for area in proj.get_overlapping_areas():
+			if area is Obstacle:
+				hit_obstacle = true
+				break
 			if area is Ship:
 				var owner_id = area.get_multiplayer_authority()
 				if owner_id == -1 or owner_id == proj.shooter_peer_id:
@@ -861,6 +882,10 @@ func _server_rule_checks(_delta: float) -> void:
 				hit_ship = area
 				break
 				
+		if hit_obstacle:
+			proj.queue_free()
+			continue
+
 		if hit_ship != null:
 			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
@@ -900,6 +925,52 @@ func _get_all_projectiles() -> Array[Projectile]:
 		if child is Projectile:
 			projectiles.append(child)
 	return projectiles
+
+func _get_all_obstacles() -> Array[Obstacle]:
+	var obstacles: Array[Obstacle] = []
+	for child in world_root.get_children():
+		if child is Obstacle:
+			obstacles.append(child)
+	return obstacles
+
+func _spawn_obstacles() -> void:
+	for obs in _get_all_obstacles():
+		obs.queue_free()
+		
+	if current_play_area_size == 1: # Large
+		print("Spawning %d obstacles for Large map..." % LARGE_AREA_OBSTACLE_COUNT)
+		var rng = RandomNumberGenerator.new()
+		rng.randomize()
+		
+		var safe_zones: Array[Vector2] = []
+		for norm_pos in SHIP_START_NORMALIZED_POSITIONS:
+			safe_zones.append(_to_world_position(norm_pos))
+			
+		var spawned := 0
+		var attempts := 0
+		var max_attempts := LARGE_AREA_OBSTACLE_COUNT * 10
+		
+		while spawned < LARGE_AREA_OBSTACLE_COUNT and attempts < max_attempts:
+			attempts += 1
+			var pos = Vector2(rng.randf_range(0, world_bounds.size.x), rng.randf_range(0, world_bounds.size.y))
+			
+			var is_safe = true
+			for safe_zone in safe_zones:
+				if pos.distance_to(safe_zone) < 250.0:
+					is_safe = false
+					break
+					
+			if is_safe:
+				var obs = OBSTACLE_SCENE.instantiate() as Obstacle
+				obs.name = "Obstacle_%d" % spawned
+				obs.position = pos
+				obs.rotation = rng.randf_range(0, TAU)
+				obs.shape_index = rng.randi() % 4
+				obs.shape_scale = rng.randf_range(0.375, 1.0)
+				obs.world_bounds = world_bounds
+				obs.edge_wrapping = current_edge_wrapping
+				world_root.add_child(obs, true)
+				spawned += 1
 
 func _get_ship_node(peer_id: int) -> Ship:
 	var expected_name := "Ship_%d" % peer_id
