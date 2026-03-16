@@ -13,10 +13,6 @@
 ## Done
 
 - [x] 1. Default the window to full screen.
-...
-- [x] 47. Implement a randomized Obstacle Spawner that populates the map with obstacles only when the "Large" play area is selected.
-- [x] 48. Add UI toggles for "Objects" and "NPCs" to the host settings, defaulting to ON. Remove the word "Enabled" from the "Edge Wrapping" toggle and new toggles.
-- [x] 49. Update object spawning logic to maintain a safe zone in the exact center of the play area (where the NPC will spawn).
 - [x] 3. Consolidate host/join to a single disconnect button.
 - [x] 4. Add quit button.
 - [x] 5. Split window vertically into left/right sections with UI layout.
@@ -62,6 +58,8 @@
 - [x] 45. Create an Obstacle entity (Asteroid style using manual `_draw()`) that is solid and indestructible.
 - [x] 46. Implement collision handling so obstacles stop projectiles and bring ships to a dead stop on impact, without causing damage.
 - [x] 47. Implement a randomized Obstacle Spawner that populates the map with obstacles only when the "Large" play area is selected.
+- [x] 48. Add UI toggles for "Objects" and "NPCs" to the host settings, defaulting to ON. Remove the word "Enabled" from the "Edge Wrapping" toggle and new toggles.
+- [x] 49. Update object spawning logic to maintain a safe zone in the exact center of the play area (where the NPC will spawn).
 
 ## Notes
 
