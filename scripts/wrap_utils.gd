@@ -32,3 +32,16 @@ static func get_wrap_offsets(bounds: Rect2, enabled: bool) -> Array[Vector2]:
 		Vector2(-bounds.size.x, -bounds.size.y)
 	])
 	return offsets
+
+## Returns the shortest distance between two points, considering screen wrapping.
+static func get_wrapped_distance(from: Vector2, to: Vector2, bounds: Rect2) -> float:
+	return get_wrapped_vector(from, to, bounds).length()
+
+## Returns the shortest vector between two points, considering screen wrapping.
+static func get_wrapped_vector(from: Vector2, to: Vector2, bounds: Rect2) -> Vector2:
+	var diff = to - from
+	if diff.x > bounds.size.x / 2.0: diff.x -= bounds.size.x
+	elif diff.x < -bounds.size.x / 2.0: diff.x += bounds.size.x
+	if diff.y > bounds.size.y / 2.0: diff.y -= bounds.size.y
+	elif diff.y < -bounds.size.y / 2.0: diff.y += bounds.size.y
+	return diff

@@ -1,7 +1,7 @@
 extends Area2D
 class_name Projectile
 
-const PROJECTILE_MAX_TRAVEL := 400.0 # WORLD_BOUNDS.size.x * 0.25 (1600 * 0.25)
+const PROJECTILE_DEFAULT_MAX_TRAVEL := 400.0 # WORLD_BOUNDS.size.x * 0.25 (1600 * 0.25)
 const PROJECTILE_RADIUS := 1.5
 const PROJECTILE_RENDER_SIDES := 12
 const WRAP_UTILS_SCRIPT := preload("res://scripts/wrap_utils.gd")
@@ -10,6 +10,7 @@ var world_bounds := Rect2(Vector2.ZERO, Vector2(1600.0, 900.0))
 var edge_wrapping := true
 var velocity := Vector2.ZERO
 var distance_traveled := 0.0
+var max_travel_distance := PROJECTILE_DEFAULT_MAX_TRAVEL
 
 @export var shooter_peer_id := -1
 
@@ -29,7 +30,7 @@ func _physics_process(delta: float) -> void:
 	position += velocity * delta
 	distance_traveled += velocity.length() * delta
 
-	if distance_traveled >= PROJECTILE_MAX_TRAVEL:
+	if distance_traveled >= max_travel_distance:
 		queue_free()
 		return
 

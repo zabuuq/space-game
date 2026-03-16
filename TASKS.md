@@ -1,20 +1,20 @@
 # Task List
 ## To Do
 
-- [ ] 50. Create an `Npc` entity (saucer shape: white thin oval with half-circle on top) that matches the player ship length and always visually faces the same direction.
-- [ ] 51. Implement NPC movement: 1/3 player acceleration, turn speed, and max speed. It must always move directly toward the closest player (no obstacle avoidance) and interact with obstacles/edges just like player ships.
-- [ ] 52. Implement NPC targeting: calculate the closest player. If edge wrapping is OFF, use absolute distance so it focuses only on the closest player on its side of the edge, not someone closer via an inactive wrap.
-- [ ] 53. Implement NPC firing: independent aiming at the targeted player, 1/3 player firing rate, and 1.33x player projectile lifespan (for 1/3 further range). Projectiles behave like player projectiles.
-- [ ] 54. Implement the NPC game loop: Spawn in the exact center of the map. Only one NPC active at a time. Spawns randomly between 30 and 120 seconds after the game starts or after destruction.
-- [ ] 55. Implement NPC scoring: destroying the NPC awards 1 point to the destroying player/team. The NPC does not gain points for kills.
-
 ## In Progress
 
 ## Done
 
 - [x] 1. Default the window to full screen.
-- [x] 3. Consolidate host/join to a single disconnect button.
-- [x] 4. Add quit button.
+...
+- [x] 49. Update object spawning logic to maintain a safe zone in the exact center of the play area (where the NPC will spawn).
+- [x] 50. Created Npc entity with white saucer shape (oval + half-circle) and locked visual orientation.
+- [x] 51. Implemented NPC movement toward closest player at 1/3 speed/accel, with obstacle and edge collision logic.
+- [x] 52. Implemented NPC targeting logic with edge-wrapping awareness and distance calculations.
+- [x] 53. Implemented NPC firing logic with independent aiming, 1/3 fire rate, and 1.33x projectile range.
+- [x] 54. Implemented NPC game loop: random spawning (30-120s) in center, ensuring only one NPC at a time.
+- [x] 55. Implemented NPC scoring: awarding 1 point to players/teams for NPC destruction; NPC gains no points.
+
 - [x] 5. Split window vertically into left/right sections with UI layout.
 - [x] 6. Implement moving, screen-wrapping Asteroids-style ship icon.
 - [x] 7. Add multiplayer with up to 6 ships and observer system.
