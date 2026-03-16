@@ -33,3 +33,7 @@ func test_npc_movement_math():
 	
 	assert_gt(npc.velocity.x, 0.0, "NPC should accelerate toward target")
 	assert_almost_eq(npc.velocity.x, npc.SPEED_STEP, 0.1, "NPC acceleration should match SPEED_STEP")
+
+func test_npc_firing_rate():
+	var npc = NPC_SCENE.instantiate()
+	assert_eq(npc.FIRE_INTERVAL, 0.96, "NPC fire interval should be 0.96 seconds")
