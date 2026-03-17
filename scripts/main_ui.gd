@@ -34,6 +34,17 @@ func _ready() -> void:
 	# Initial signal connections for UI-internal logic if any
 	join_popup.close_requested.connect(join_popup.hide)
 	host_popup.close_requested.connect(host_popup.hide)
+	
+	objects_check.button_pressed = false
+	_update_objects_check(play_area_size_option.selected)
+	play_area_size_option.item_selected.connect(_update_objects_check)
+
+func _update_objects_check(size_index: int) -> void:
+	if size_index == 0: # Small map
+		objects_check.disabled = true
+		objects_check.button_pressed = false
+	else:
+		objects_check.disabled = false
 
 func setup_ui(
 	on_quit_pressed: Callable,
