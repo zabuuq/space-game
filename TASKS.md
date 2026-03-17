@@ -1,5 +1,4 @@
 # Task List
-
 ## To Do
 
 ## In Progress
@@ -7,9 +6,15 @@
 ## Done
 
 - [x] 1. Default the window to full screen.
-- [x] 2. Remove IP/port fields, default port to 56419, add connect popup.
-- [x] 3. Consolidate host/join to a single disconnect button.
-- [x] 4. Add quit button.
+...
+- [x] 49. Update object spawning logic to maintain a safe zone in the exact center of the play area (where the NPC will spawn).
+- [x] 50. Created Npc entity with white saucer shape (oval + half-circle) and locked visual orientation.
+- [x] 51. Implemented NPC movement toward closest player at 1/3 speed/accel, with obstacle and edge collision logic.
+- [x] 52. Implemented NPC targeting logic with edge-wrapping awareness and distance calculations.
+- [x] 53. Implemented NPC firing logic with independent aiming, 1/3.75 fire rate, and 1.33x projectile range.
+- [x] 54. Implemented NPC game loop: random spawning (30-60s) in center, ensuring only one NPC at a time.
+- [x] 55. Implemented NPC scoring: awarding 1 point to players/teams for NPC destruction; NPC gains no points.
+
 - [x] 5. Split window vertically into left/right sections with UI layout.
 - [x] 6. Implement moving, screen-wrapping Asteroids-style ship icon.
 - [x] 7. Add multiplayer with up to 6 ships and observer system.
@@ -53,6 +58,8 @@
 - [x] 45. Create an Obstacle entity (Asteroid style using manual `_draw()`) that is solid and indestructible.
 - [x] 46. Implement collision handling so obstacles stop projectiles and bring ships to a dead stop on impact, without causing damage.
 - [x] 47. Implement a randomized Obstacle Spawner that populates the map with obstacles only when the "Large" play area is selected.
+- [x] 48. Add UI toggles for "Objects" and "NPCs" to the host settings, defaulting to ON. Remove the word "Enabled" from the "Edge Wrapping" toggle and new toggles.
+- [x] 49. Update object spawning logic to maintain a safe zone in the exact center of the play area (where the NPC will spawn).
 
 ## Notes
 

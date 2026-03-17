@@ -40,7 +40,11 @@ const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [
 
 const SHIP_SCENE := preload("res://entities/ship/ship.tscn")
 const OBSTACLE_SCENE := preload("res://entities/obstacle/obstacle.tscn")
+const NPC_SCENE := preload("res://entities/npc/npc.tscn")
+const NPC_SCRIPT := preload("res://entities/npc/npc.gd")
 const LARGE_AREA_OBSTACLE_COUNT := 60
+const NPC_MIN_SPAWN_SECONDS := 30.0
+const NPC_MAX_SPAWN_SECONDS := 60.0
 const CONNECTION_CONTROLLER_SCRIPT := preload("res://scripts/connection_controller.gd")
 const IP_INFO_SERVICE_SCRIPT := preload("res://scripts/ip_info_service.gd")
 const PEER_ROSTER_SERVICE_SCRIPT := preload("res://scripts/peer_roster_service.gd")
@@ -84,6 +88,9 @@ var slot_offer_local_timer: float = 0.0
 
 var current_play_area_size: int = 0
 var current_edge_wrapping: bool = true
+var current_enable_objects: bool = true
+var current_enable_npc: bool = true
+var npc_spawn_timer := 0.0
 var world_bounds := Rect2(Vector2.ZERO, BASE_RESOLUTION)
 var starfield: Node2D
 var off_screen_pointers: Control
@@ -147,6 +154,7 @@ func _ready() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	get_viewport().size_changed.connect(queue_redraw)
 
+	multiplayer.multiplayer_peer = null
 	set_process_unhandled_input(true)
 	set_process(true)
 	_set_status(STATUS_NOT_CONNECTED)
@@ -162,12 +170,18 @@ func _on_host_confirmed() -> void:
 	var settings = ui.get_host_settings()
 	current_play_area_size = settings.play_area_size
 	current_edge_wrapping = settings.edge_wrapping
+	current_enable_objects = settings.enable_objects
+	current_enable_npc = settings.enable_npc
 	
 	if not connection_controller.host(DEFAULT_PORT):
 		return
 
-	sync_game_settings(current_play_area_size, current_edge_wrapping)
+	sync_game_settings(current_play_area_size, current_edge_wrapping, current_enable_objects, current_enable_npc)
 	scoring_manager.clear()
+	
+	if current_enable_npc:
+		npc_spawn_timer = randf_range(NPC_MIN_SPAWN_SECONDS, NPC_MAX_SPAWN_SECONDS)
+	
 	_initialize_host_roster()
 	_assign_peer_role(multiplayer.get_unique_id())
 	_refresh_peer_list()
@@ -211,16 +225,19 @@ func _on_peer_connected(peer_id: int) -> void:
 	if not multiplayer.is_server():
 		return
 
-	sync_game_settings.rpc_id(peer_id, current_play_area_size, current_edge_wrapping)
+	sync_game_settings.rpc_id(peer_id, current_play_area_size, current_edge_wrapping, current_enable_objects, current_enable_npc)
 	peer_roster.ensure_peer_in_order(peer_id)
 	_assign_peer_role(peer_id)
 	_broadcast_peer_roster()
 	_broadcast_team_roster()
 
 @rpc("authority", "call_local", "reliable")
-func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
+func sync_game_settings(play_area_size: int, edge_wrapping: bool, enable_objects: bool, enable_npc: bool) -> void:
 	current_play_area_size = play_area_size
 	current_edge_wrapping = edge_wrapping
+	current_enable_objects = enable_objects
+	current_enable_npc = enable_npc
+	
 	if play_area_size == 1:
 		world_bounds = Rect2(Vector2.ZERO, Vector2(BASE_RESOLUTION.x * 3.0, BASE_RESOLUTION.x * 3.0))
 	else:
@@ -241,7 +258,11 @@ func sync_game_settings(play_area_size: int, edge_wrapping: bool) -> void:
 		obs.edge_wrapping = edge_wrapping
 
 	if multiplayer.is_server():
-		_spawn_obstacles()
+		if current_enable_objects:
+			_spawn_obstacles()
+		else:
+			for obs in _get_all_obstacles():
+				obs.queue_free()
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	if not multiplayer.is_server():
@@ -846,6 +867,16 @@ func _handle_local_input() -> void:
 				ship.request_turret_fire.rpc_id(1)
 
 func _server_rule_checks(_delta: float) -> void:
+	# NPC Spawning
+	if current_enable_npc:
+		var npcs = _get_all_npcs()
+		if npcs.is_empty():
+			if npc_spawn_timer <= 0.0:
+				_spawn_npc()
+				npc_spawn_timer = randf_range(NPC_MIN_SPAWN_SECONDS, NPC_MAX_SPAWN_SECONDS)
+			else:
+				npc_spawn_timer -= _delta
+
 	var all_ships := _get_all_ships()
 	var all_projectiles := _get_all_projectiles()
 
@@ -864,18 +895,38 @@ func _server_rule_checks(_delta: float) -> void:
 				ship.full_stop()
 				break
 
+	# Update NPC status and collisions
+	var all_npcs := _get_all_npcs()
+	for npc in all_npcs:
+		for area in npc.get_overlapping_areas():
+			if area is Obstacle:
+				var push_dir = (npc.global_position - area.global_position).normalized()
+				if push_dir == Vector2.ZERO:
+					push_dir = Vector2.UP
+				npc.position += push_dir * 4.0
+				npc.full_stop()
+				break
+
 	# Projectile collision detection
 	var score_changed := false
 	for proj in all_projectiles:
 		var hit_ship: Ship = null
+		var hit_npc: Node = null
 		var hit_obstacle := false
 		for area in proj.get_overlapping_areas():
 			if area is Obstacle:
 				hit_obstacle = true
 				break
+			if area.get_script() == NPC_SCRIPT:
+				if proj.shooter_peer_id != -1:
+					hit_npc = area
+					break
 			if area is Ship:
 				var owner_id = area.get_multiplayer_authority()
-				if owner_id == -1 or owner_id == proj.shooter_peer_id:
+				# NPC projectile hitting ship or player hitting ship
+				if owner_id == -1: # Unlikely to be -1 for Ship but let's be safe
+					continue
+				if owner_id == proj.shooter_peer_id:
 					continue
 				if area.is_immune:
 					continue
@@ -886,25 +937,52 @@ func _server_rule_checks(_delta: float) -> void:
 			proj.queue_free()
 			continue
 
-		if hit_ship != null:
-			var hit_peer_id = hit_ship.get_multiplayer_authority()
-			var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
-			_reset_ship(hit_ship, hit_peer_id)
+		if hit_npc != null:
+			proj.queue_free()
+			hit_npc.queue_free()
+			# Reset spawn timer after destruction
+			npc_spawn_timer = randf_range(NPC_MIN_SPAWN_SECONDS, NPC_MAX_SPAWN_SECONDS)
 			
 			var shooter_id = proj.shooter_peer_id
-			score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), points_to_award) or score_changed
+			if shooter_id != -1:
+				# Award 1 point for NPC destruction
+				score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), 1) or score_changed
+			continue
+
+		if hit_ship != null:
+			var hit_peer_id = hit_ship.get_multiplayer_authority()
 			
-			if turret_operator_by_pilot_id.has(shooter_id):
-				var operator_id: int = turret_operator_by_pilot_id[shooter_id]
-				score_changed = scoring_manager.award_point(operator_id, peer_roster.get_peer_identity_key(operator_id), points_to_award) or score_changed
-			elif pilot_by_turret_operator_id.has(shooter_id):
-				var pilot_id: int = pilot_by_turret_operator_id[shooter_id]
-				score_changed = scoring_manager.award_point(pilot_id, peer_roster.get_peer_identity_key(pilot_id), points_to_award) or score_changed
+			var shooter_id = proj.shooter_peer_id
+			if shooter_id != -1:
+				var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
+				_reset_ship(hit_ship, hit_peer_id)
+				score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), points_to_award) or score_changed
+				
+				if turret_operator_by_pilot_id.has(shooter_id):
+					var operator_id: int = turret_operator_by_pilot_id[shooter_id]
+					score_changed = scoring_manager.award_point(operator_id, peer_roster.get_peer_identity_key(operator_id), points_to_award) or score_changed
+				elif pilot_by_turret_operator_id.has(shooter_id):
+					var pilot_id: int = pilot_by_turret_operator_id[shooter_id]
+					score_changed = scoring_manager.award_point(pilot_id, peer_roster.get_peer_identity_key(pilot_id), points_to_award) or score_changed
+			else:
+				# NPC hit a ship
+				_reset_ship(hit_ship, hit_peer_id)
 				
 			proj.queue_free()
+			continue
 
 	if score_changed:
 		_broadcast_peer_roster()
+
+func _spawn_npc() -> void:
+	if not multiplayer.is_server():
+		return
+	var npc = NPC_SCENE.instantiate()
+	npc.position = world_bounds.get_center()
+	npc.world_bounds = world_bounds
+	npc.edge_wrapping = current_edge_wrapping
+	world_root.add_child(npc, true)
+	print("NPC spawned at center.")
 
 func _reset_ship(ship: Ship, peer_id: int) -> void:
 	var slot_index = _get_slot_index_for_peer(peer_id)
@@ -926,6 +1004,13 @@ func _get_all_projectiles() -> Array[Projectile]:
 			projectiles.append(child)
 	return projectiles
 
+func _get_all_npcs() -> Array:
+	var npcs: Array = []
+	for child in world_root.get_children():
+		if child.get_script() == NPC_SCRIPT:
+			npcs.append(child)
+	return npcs
+
 func _get_all_obstacles() -> Array[Obstacle]:
 	var obstacles: Array[Obstacle] = []
 	for child in world_root.get_children():
@@ -945,6 +1030,9 @@ func _spawn_obstacles() -> void:
 		var safe_zones: Array[Vector2] = []
 		for norm_pos in SHIP_START_NORMALIZED_POSITIONS:
 			safe_zones.append(_to_world_position(norm_pos))
+		
+		# NPC spawn safe zone (center)
+		safe_zones.append(world_bounds.get_center())
 			
 		var spawned := 0
 		var attempts := 0

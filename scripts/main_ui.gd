@@ -15,6 +15,8 @@ class_name MainUi
 @onready var host_popup: ConfirmationDialog = %HostPopup
 @onready var play_area_size_option: OptionButton = %PlayAreaSizeOption
 @onready var edge_wrap_check: CheckButton = %EdgeWrapCheck
+@onready var objects_check: CheckButton = %ObjectsCheck
+@onready var npc_check: CheckButton = %NpcCheck
 @onready var join_ip_input: LineEdit = %JoinIpInput
 @onready var right_section: ColorRect = %RightSection
 @onready var quit_button: Button = %QuitButton
@@ -60,7 +62,9 @@ func setup_ui(
 func get_host_settings() -> Dictionary:
 	return {
 		"play_area_size": play_area_size_option.selected,
-		"edge_wrapping": edge_wrap_check.button_pressed
+		"edge_wrapping": edge_wrap_check.button_pressed,
+		"enable_objects": objects_check.button_pressed,
+		"enable_npc": npc_check.button_pressed
 	}
 
 func initialize_color_dropdown(ship_colors: Array) -> void:

@@ -281,14 +281,14 @@ dialog_text = "Are you sure you want to join this team?"
 unique_name_in_owner = true
 title = "Host Game Settings"
 initial_position = 2
-size = Vector2i(300, 150)
+size = Vector2i(300, 200)
 ok_button_text = "Host"
 
 [node name="VBox" type="VBoxContainer" parent="HostPopup"]
 offset_left = 8.0
 offset_top = 8.0
 offset_right = 292.0
-offset_bottom = 101.0
+offset_bottom = 151.0
 theme_override_constants/separation = 10
 
 [node name="SizeRow" type="HBoxContainer" parent="HostPopup/VBox"]
@@ -327,4 +327,35 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
 button_pressed = true
-text = "Enabled"
+
+[node name="ObjectsRow" type="HBoxContainer" parent="HostPopup/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HostPopup/VBox/ObjectsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "Objects:"
+
+[node name="ObjectsCheck" type="CheckButton" parent="HostPopup/VBox/ObjectsRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+button_pressed = true
+
+[node name="NpcRow" type="HBoxContainer" parent="HostPopup/VBox"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="HostPopup/VBox/NpcRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+text = "NPCs:"
+
+[node name="NpcCheck" type="CheckButton" parent="HostPopup/VBox/NpcRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 18
+button_pressed = true
