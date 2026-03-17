@@ -29,61 +29,69 @@ func _draw() -> void:
 	if local_id == 0:
 		return
 		
-	var all_ships = main_node._get_all_ships()
+	var camera_center = main_node._get_camera_target_position()
+	var world_size = main_node.world_bounds.size
+	var is_wrapping = main_node.current_edge_wrapping
 	
-	for ship in all_ships:
+	# Draw ship pointers
+	for ship in main_node._get_all_ships():
 		var ship_owner = ship.get_multiplayer_authority()
 		if ship_owner == local_id or ship_owner == -1:
 			continue
+		_draw_entity_pointer(ship.position, ship.ship_color, camera_rect, camera_center, world_size, is_wrapping)
+
+	# Draw NPC pointers
+	if main_node.has_method("_get_all_npcs"):
+		for npc in main_node._get_all_npcs():
+			_draw_entity_pointer(npc.position, Color.WHITE, camera_rect, camera_center, world_size, is_wrapping)
+
+func _draw_entity_pointer(entity_pos: Vector2, color: Color, camera_rect: Rect2, camera_center: Vector2, world_size: Vector2, is_wrapping: bool) -> void:
+	var dx = entity_pos.x - camera_center.x
+	var dy = entity_pos.y - camera_center.y
+	
+	if is_wrapping:
+		if dx > world_size.x * 0.5:
+			dx -= world_size.x
+		elif dx < -world_size.x * 0.5:
+			dx += world_size.x
 			
-		var camera_center = main_node._get_camera_target_position()
-		var dx = ship.position.x - camera_center.x
-		var dy = ship.position.y - camera_center.y
-		
-		if main_node.current_edge_wrapping:
-			var world_size = main_node.world_bounds.size
-			if dx > world_size.x * 0.5:
-				dx -= world_size.x
-			elif dx < -world_size.x * 0.5:
-				dx += world_size.x
-				
-			if dy > world_size.y * 0.5:
-				dy -= world_size.y
-			elif dy < -world_size.y * 0.5:
-				dy += world_size.y
-				
-		var ship_global_pos = (camera_rect.size * 0.5) + Vector2(dx, dy)
-		
-		# If the ship is visible inside the camera rect, no pointer needed
-		if camera_rect.grow(10.0).has_point(ship_global_pos):
-			continue
-		
-		var center = camera_rect.size * 0.5
-		var dir = (ship_global_pos - center).normalized()
-		
-		if dir.x == 0 and dir.y == 0:
-			continue
+		if dy > world_size.y * 0.5:
+			dy -= world_size.y
+		elif dy < -world_size.y * 0.5:
+			dy += world_size.y
 			
-		# Calculate intersection with a slightly shrunken rectangle to ensure full visibility
-		var margin = pointer_size * 2.0
-		var inner_size = size - Vector2(margin * 2.0, margin * 2.0)
+	var entity_global_pos = (camera_rect.size * 0.5) + Vector2(dx, dy)
+	
+	# If the entity is visible inside the camera rect, no pointer needed
+	if camera_rect.grow(10.0).has_point(entity_global_pos):
+		return
+	
+	var center = camera_rect.size * 0.5
+	var dir = (entity_global_pos - center).normalized()
+	
+	if dir.x == 0 and dir.y == 0:
+		return
 		
-		var t_x = INF
-		if dir.x > 0:
-			t_x = (inner_size.x * 0.5) / dir.x
-		elif dir.x < 0:
-			t_x = -(inner_size.x * 0.5) / dir.x
-			
-		var t_y = INF
-		if dir.y > 0:
-			t_y = (inner_size.y * 0.5) / dir.y
-		elif dir.y < 0:
-			t_y = -(inner_size.y * 0.5) / dir.y
-			
-		var t = min(t_x, t_y)
-		var edge_pos = center + dir * t
+	# Calculate intersection with a slightly shrunken rectangle to ensure full visibility
+	var margin = pointer_size * 2.0
+	var inner_size = size - Vector2(margin * 2.0, margin * 2.0)
+	
+	var t_x = INF
+	if dir.x > 0:
+		t_x = (inner_size.x * 0.5) / dir.x
+	elif dir.x < 0:
+		t_x = -(inner_size.x * 0.5) / dir.x
 		
-		_draw_pointer(edge_pos, dir, ship.ship_color)
+	var t_y = INF
+	if dir.y > 0:
+		t_y = (inner_size.y * 0.5) / dir.y
+	elif dir.y < 0:
+		t_y = -(inner_size.y * 0.5) / dir.y
+		
+	var t = min(t_x, t_y)
+	var edge_pos = center + dir * t
+	
+	_draw_pointer(edge_pos, dir, color)
 
 func _draw_pointer(pos: Vector2, dir: Vector2, color: Color) -> void:
 	var perp = Vector2(-dir.y, dir.x)
