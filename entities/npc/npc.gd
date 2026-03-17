@@ -3,7 +3,7 @@ extends Area2D
 const MAX_SPEED := 200.0 / 3.0
 const SPEED_STEP := 28.0 / 3.0
 const ROTATION_SPEED := 2.8 / 3.0
-const FIRE_INTERVAL := 1.44
+const FIRE_INTERVAL := 1.2
 const NPC_OUTLINE_WIDTH := 2.0
 const NPC_HIT_RADIUS := 10.0
 

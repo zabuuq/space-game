@@ -11,7 +11,7 @@
 - [x] 50. Created Npc entity with white saucer shape (oval + half-circle) and locked visual orientation.
 - [x] 51. Implemented NPC movement toward closest player at 1/3 speed/accel, with obstacle and edge collision logic.
 - [x] 52. Implemented NPC targeting logic with edge-wrapping awareness and distance calculations.
-- [x] 53. Implemented NPC firing logic with independent aiming, 1/4.5 fire rate, and 1.33x projectile range.
+- [x] 53. Implemented NPC firing logic with independent aiming, 1/3.75 fire rate, and 1.33x projectile range.
 - [x] 54. Implemented NPC game loop: random spawning (30-90s) in center, ensuring only one NPC at a time.
 - [x] 55. Implemented NPC scoring: awarding 1 point to players/teams for NPC destruction; NPC gains no points.
 
