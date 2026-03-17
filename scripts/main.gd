@@ -946,7 +946,7 @@ func _server_rule_checks(_delta: float) -> void:
 			var shooter_id = proj.shooter_peer_id
 			if shooter_id != -1:
 				# Award 1 point for NPC destruction
-				score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), 1) or score_changed
+				score_changed = _award_team_points(shooter_id, 1) or score_changed
 			continue
 
 		if hit_ship != null:
@@ -956,14 +956,7 @@ func _server_rule_checks(_delta: float) -> void:
 			if shooter_id != -1:
 				var points_to_award = 2 if hit_ship.turret_operator_id != 0 else 1
 				_reset_ship(hit_ship, hit_peer_id)
-				score_changed = scoring_manager.award_point(shooter_id, peer_roster.get_peer_identity_key(shooter_id), points_to_award) or score_changed
-				
-				if turret_operator_by_pilot_id.has(shooter_id):
-					var operator_id: int = turret_operator_by_pilot_id[shooter_id]
-					score_changed = scoring_manager.award_point(operator_id, peer_roster.get_peer_identity_key(operator_id), points_to_award) or score_changed
-				elif pilot_by_turret_operator_id.has(shooter_id):
-					var pilot_id: int = pilot_by_turret_operator_id[shooter_id]
-					score_changed = scoring_manager.award_point(pilot_id, peer_roster.get_peer_identity_key(pilot_id), points_to_award) or score_changed
+				score_changed = _award_team_points(shooter_id, points_to_award) or score_changed
 			else:
 				# NPC hit a ship
 				_reset_ship(hit_ship, hit_peer_id)
@@ -973,6 +966,24 @@ func _server_rule_checks(_delta: float) -> void:
 
 	if score_changed:
 		_broadcast_peer_roster()
+
+func _award_team_points(shooter_id: int, points: int) -> bool:
+	var score_changed = false
+	var shooter_key = peer_roster.get_peer_identity_key(shooter_id)
+	score_changed = scoring_manager.award_point(shooter_id, shooter_key, points) or score_changed
+	
+	var teammate_id = -1
+	if turret_operator_by_pilot_id.has(shooter_id):
+		teammate_id = turret_operator_by_pilot_id[shooter_id]
+	elif pilot_by_turret_operator_id.has(shooter_id):
+		teammate_id = pilot_by_turret_operator_id[shooter_id]
+		
+	if teammate_id != -1:
+		var teammate_key = peer_roster.get_peer_identity_key(teammate_id)
+		if teammate_key != shooter_key:
+			score_changed = scoring_manager.award_point(teammate_id, teammate_key, points) or score_changed
+			
+	return score_changed
 
 func _spawn_npc() -> void:
 	if not multiplayer.is_server():

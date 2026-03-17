@@ -36,7 +36,9 @@ func award_point(peer_id: int, identity_key: String, points: int = 1) -> bool:
 		return false
 	var next_score: int = int(score_by_identity.get(key, 0)) + points
 	score_by_identity[key] = next_score
-	peer_score_by_id[peer_id] = next_score
+	for p_id in peer_identity_by_id:
+		if peer_identity_by_id[p_id] == key:
+			peer_score_by_id[p_id] = next_score
 	return true
 
 func get_sync_scores(peer_ids: Array[int]) -> Array[int]:
