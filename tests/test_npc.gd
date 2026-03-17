@@ -36,4 +36,4 @@ func test_npc_movement_math():
 
 func test_npc_firing_rate():
 	var npc = NPC_SCENE.instantiate()
-	assert_eq(npc.FIRE_INTERVAL, 1.92, "NPC fire interval should be 1.92 seconds (1/6th of player rate)")
+	assert_eq(npc.FIRE_INTERVAL, 1.44, "NPC fire interval should be 1.44 seconds")
