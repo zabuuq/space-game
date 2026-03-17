@@ -16,6 +16,7 @@ class_name MainUi
 @onready var play_area_size_option: OptionButton = %PlayAreaSizeOption
 @onready var edge_wrap_check: CheckButton = %EdgeWrapCheck
 @onready var objects_check: CheckButton = %ObjectsCheck
+@onready var objects_label: Label = %ObjectsLabel
 @onready var npc_check: CheckButton = %NpcCheck
 @onready var join_ip_input: LineEdit = %JoinIpInput
 @onready var right_section: ColorRect = %RightSection
@@ -43,8 +44,10 @@ func _update_objects_check(size_index: int) -> void:
 	if size_index == 0: # Small map
 		objects_check.disabled = true
 		objects_check.button_pressed = false
+		objects_label.modulate = Color(0.5, 0.5, 0.5)
 	else:
 		objects_check.disabled = false
+		objects_label.modulate = Color.WHITE
 
 func setup_ui(
 	on_quit_pressed: Callable,
