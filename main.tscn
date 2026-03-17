@@ -45,3 +45,7 @@ spawn_path = NodePath("../World/SubViewport/WorldRoot")
 [node name="ObstacleSpawner" type="MultiplayerSpawner" parent="."]
 _spawnable_scenes = PackedStringArray("res://entities/obstacle/obstacle.tscn")
 spawn_path = NodePath("../World/SubViewport/WorldRoot")
+
+[node name="NpcSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://entities/npc/npc.tscn")
+spawn_path = NodePath("../World/SubViewport/WorldRoot")
