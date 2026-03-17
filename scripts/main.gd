@@ -982,6 +982,13 @@ func _award_team_points(shooter_id: int, points: int) -> bool:
 		var teammate_key = peer_roster.get_peer_identity_key(teammate_id)
 		if teammate_key != shooter_key:
 			score_changed = scoring_manager.award_point(teammate_id, teammate_key, points) or score_changed
+		else:
+			# They share an identity key (e.g., local testing).
+			# We already awarded the points to the shared identity.
+			# Just sync the teammate's local score directly.
+			var current_score = scoring_manager.get_peer_score(shooter_id)
+			scoring_manager.set_peer_score(teammate_id, current_score)
+			score_changed = true
 			
 	return score_changed
 
