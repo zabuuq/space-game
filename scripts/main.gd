@@ -637,12 +637,13 @@ func _server_handle_peer_leave_team(peer_id: int) -> void:
 			_set_damage_immunity_for_peer(pilot_id)
 			pilot_ship.is_immune = true
 			
+		# Assign next available color to operator before respawning
+		var new_color_index: int = peer_roster.find_first_available_color(PLAYER_COLORS.size(), operator_id)
+		peer_roster.set_peer_color_index(operator_id, new_color_index)
+		
 		# Respawn operator or make observer
 		_assign_peer_role(operator_id)
 		
-		# Assign next available color
-		var new_color_index: int = peer_roster.find_first_available_color(PLAYER_COLORS.size(), operator_id)
-		peer_roster.set_peer_color_index(operator_id, new_color_index)
 		_broadcast_peer_roster()
 
 func _broadcast_team_roster() -> void:
