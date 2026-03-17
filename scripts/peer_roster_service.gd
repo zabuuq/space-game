@@ -106,9 +106,14 @@ func get_peer_identity_key(peer_id: int) -> String:
 	var info: Dictionary = _get_peer_info(peer_id)
 	var internal_ip: String = str(info["internal"])
 	var external_ip: String = str(info["external"])
+	var name: String = str(info["name"]).strip_edges()
 	if internal_ip == "Unknown" or external_ip == "Unknown":
 		return ""
-	return "%s|%s" % [internal_ip, external_ip]
+	
+	if name.is_empty():
+		return "%s|%s|peer_%d" % [internal_ip, external_ip, peer_id]
+		
+	return "%s|%s|%s" % [internal_ip, external_ip, name]
 
 func is_color_taken(color_index: int, ignore_peer_id: int = -1) -> bool:
 	if color_index < 0:

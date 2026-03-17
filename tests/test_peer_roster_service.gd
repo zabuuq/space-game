@@ -68,6 +68,12 @@ func test_resolve_color_index():
 func test_get_peer_identity_key():
 	roster.upsert_peer(1, "192.168.1.5", "8.8.8.8", "Player", 0)
 	roster.ensure_peer_in_order(1)
-	
+
 	var key = roster.get_peer_identity_key(1)
-	assert_eq(key, "192.168.1.5|8.8.8.8", "Key should be combination of internal and external IP")
+	assert_eq(key, "192.168.1.5|8.8.8.8|Player", "Key should include name when present")
+
+	roster.upsert_peer(2, "192.168.1.5", "8.8.8.8", "", 1)
+	roster.ensure_peer_in_order(2)
+
+	var key2 = roster.get_peer_identity_key(2)
+	assert_eq(key2, "192.168.1.5|8.8.8.8|peer_2", "Key should fallback to peer_id if name is empty")
