@@ -308,6 +308,10 @@ func _sync_local_color_from_roster() -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
 	var local_id: int = multiplayer.get_unique_id()
+	
+	if ui.player_color_dropdown != null:
+		ui.player_color_dropdown.disabled = pilot_by_turret_operator_id.has(local_id)
+		
 	var synced_color_index: int = peer_roster.get_peer_color_index(local_id)
 	if synced_color_index == -1:
 		return
@@ -661,9 +665,9 @@ func sync_team_roster(pilots: Array[int], operators: Array[int]) -> void:
 	for i in range(mini(pilots.size(), operators.size())):
 		turret_operator_by_pilot_id[pilots[i]] = operators[i]
 		pilot_by_turret_operator_id[operators[i]] = pilots[i]
-		
-	_refresh_peer_list()
 
+	_sync_local_color_from_roster()
+	_refresh_peer_list()
 func _submit_local_identity() -> void:
 	if multiplayer.multiplayer_peer == null:
 		return
@@ -715,7 +719,13 @@ func submit_peer_info(
 		return
 
 	var sender_id: int = multiplayer.get_remote_sender_id()
-	var resolved_color_index := _resolve_color_for_peer(sender_id, preferred_color_index)
+	
+	var effective_color_index = preferred_color_index
+	if pilot_by_turret_operator_id.has(sender_id):
+		var pilot_id: int = pilot_by_turret_operator_id[sender_id]
+		effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+		
+	var resolved_color_index := _resolve_color_for_peer(sender_id, effective_color_index)
 	peer_roster.upsert_peer(
 		sender_id,
 		internal_ip,
@@ -725,6 +735,12 @@ func submit_peer_info(
 	)
 	scoring_manager.bind_peer_score(sender_id, peer_roster.get_peer_identity_key(sender_id))
 	_update_ship_color(sender_id)
+	
+	if turret_operator_by_pilot_id.has(sender_id):
+		var operator_id: int = turret_operator_by_pilot_id[sender_id]
+		peer_roster.set_peer_color_index(operator_id, resolved_color_index)
+		_update_ship_color(operator_id)
+		
 	_broadcast_peer_roster()
 
 func _update_ship_color(peer_id: int) -> void:
