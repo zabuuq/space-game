@@ -219,7 +219,7 @@ func update_movement(
 	var active_rot_speed := ROTATION_SPEED
 	
 	if turret_operator_id != 0:
-		active_accel_multiplier *= 0.25
+		active_accel_multiplier *= 0.5
 		active_rot_speed *= 0.5
 	
 	# Handle rotation
