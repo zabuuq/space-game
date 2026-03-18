@@ -678,11 +678,13 @@ func _submit_local_identity() -> void:
 		var host_id: int = multiplayer.get_unique_id()
 		
 		var effective_color_index := local_preferred_color_index
+		var resolved_color_index: int
 		if pilot_by_turret_operator_id.has(host_id):
 			var pilot_id: int = pilot_by_turret_operator_id[host_id]
-			effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+			resolved_color_index = peer_roster.get_peer_color_index(pilot_id)
+		else:
+			resolved_color_index = _resolve_color_for_peer(host_id, effective_color_index)
 			
-		var resolved_color_index := _resolve_color_for_peer(host_id, effective_color_index)
 		_set_local_color_index(resolved_color_index)
 		peer_roster.upsert_peer(
 			host_id,
@@ -729,11 +731,13 @@ func submit_peer_info(
 	var sender_id: int = multiplayer.get_remote_sender_id()
 	
 	var effective_color_index = preferred_color_index
+	var resolved_color_index: int
 	if pilot_by_turret_operator_id.has(sender_id):
 		var pilot_id: int = pilot_by_turret_operator_id[sender_id]
-		effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+		resolved_color_index = peer_roster.get_peer_color_index(pilot_id)
+	else:
+		resolved_color_index = _resolve_color_for_peer(sender_id, effective_color_index)
 		
-	var resolved_color_index := _resolve_color_for_peer(sender_id, effective_color_index)
 	peer_roster.upsert_peer(
 		sender_id,
 		internal_ip,
