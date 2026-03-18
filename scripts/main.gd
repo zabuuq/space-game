@@ -702,12 +702,18 @@ func _submit_local_identity() -> void:
 			
 		_broadcast_peer_roster()
 	else:
+		var local_id: int = multiplayer.get_unique_id()
+		var effective_color_index := local_preferred_color_index
+		if pilot_by_turret_operator_id.has(local_id):
+			var pilot_id: int = pilot_by_turret_operator_id[local_id]
+			effective_color_index = peer_roster.get_peer_color_index(pilot_id)
+
 		submit_peer_info.rpc_id(
 			1,
 			ip_info.local_internal_ip,
 			ip_info.local_external_ip,
 			local_player_name,
-			local_preferred_color_index
+			effective_color_index
 		)
 
 @rpc("any_peer", "reliable")
