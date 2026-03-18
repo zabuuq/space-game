@@ -26,7 +26,8 @@ const PLAYER_COLORS: Array[Color] = [
 	Color(0.84, 0.44, 0.96), # violet
 	Color(0.29, 0.90, 0.88), # cyan
 	Color(1.00, 0.58, 0.24), # orange
-	Color(0.98, 0.31, 0.67)  # pink
+	Color(0.98, 0.31, 0.67),  # pink
+	Color(0.569, 0.621, 0.629, 1.0)  # grey
 ]
 
 const SHIP_START_NORMALIZED_POSITIONS: Array[Vector2] = [

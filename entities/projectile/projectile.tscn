@@ -1,6 +1,6 @@
-[gd_scene load_steps=4 format=3 uid="uid://d3u2h0k3w0m8f"]
+[gd_scene format=3 uid="uid://d3u2h0k3w0m8f"]
 
-[ext_resource type="Script" path="res://entities/projectile/projectile.gd" id="1_proj"]
+[ext_resource type="Script" uid="uid://lw5x66giceig" path="res://entities/projectile/projectile.gd" id="1_proj"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_proj"]
 radius = 1.5
@@ -16,11 +16,11 @@ properties/2/path = NodePath(".:shooter_peer_id")
 properties/2/spawn = true
 properties/2/replication_mode = 2
 
-[node name="Projectile" type="Area2D"]
+[node name="Projectile" type="Area2D" unique_id=2137066570]
 script = ExtResource("1_proj")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=119425824]
 shape = SubResource("CircleShape2D_proj")
 
-[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="."]
+[node name="MultiplayerSynchronizer" type="MultiplayerSynchronizer" parent="." unique_id=1730765714]
 replication_config = SubResource("SceneReplicationConfig_proj")
